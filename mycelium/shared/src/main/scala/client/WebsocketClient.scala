@@ -5,21 +5,10 @@ import mycelium.core.message._
 
 import scala.concurrent.{ ExecutionContext, Future }
 
-object ClientConfig {
-  case class Request(timeoutMillis: Int)
-  case class Ping(timeoutMillis: Int)
-  case class Reconnect(minimumBackoffMillis: Int)
-}
-
-case class ClientConfig(
-  requestConfig: ClientConfig.Request,
-  pingConfig: Option[ClientConfig.Ping],
-  reconnectConfig: Option[ClientConfig.Reconnect])
-
 class WebsocketClient[Encoder[_], Decoder[_], PickleType, Payload, Event, Failure, State](
   ws: WebsocketConnection[PickleType],
   requestTimeoutMillis: Int)(implicit
-  ec: ExecutionContext,
+  ec: ExecutionContext, //TODO needed for send#open(), maybe an implicit there?
   encoder: Encoder[ClientMessage[Payload]],
   decoder: Decoder[ServerMessage[Payload, Event, Failure]],
   serializer: Serializer[Encoder, Decoder, PickleType]) {

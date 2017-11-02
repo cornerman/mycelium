@@ -7,14 +7,6 @@ import akka.NotUsed
 import akka.actor._
 import akka.http.scaladsl.model.ws.Message
 import akka.stream.scaladsl._
-import akka.stream.OverflowStrategy
-
-object ServerConfig {
-  case class Flow(bufferSize: Int, overflowStrategy: OverflowStrategy)
-}
-
-case class ServerConfig(
-  flowConfig: ServerConfig.Flow)
 
 object WebsocketServerFlow {
   def apply[Encoder[_], Decoder[_], PickleType, Payload, Event, PublishEvent, Failure, State](
