@@ -10,9 +10,25 @@ inThisBuild(Seq(
     "-explaintypes" ::
     "-feature" ::
     "-language:_" ::
-    "-Xlint:_" ::
+    "-Xcheckinit" ::
+    "-Xfuture" ::
+    "-Xlint" ::
+    "-Yno-adapted-args" ::
+    "-Ywarn-dead-code" ::
     "-Ywarn-unused" ::
-    Nil
+    "-Ywarn-infer-any" ::
+    "-Ywarn-nullary-override" ::
+    "-Ywarn-nullary-unit" ::
+    Nil,
+  scalacOptions ++= {
+    CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, 12)) =>
+        "-Ywarn-extra-implicit" ::
+        Nil
+      case _             =>
+        Nil
+    }
+  }
 ))
 
 resolvers += Resolver.sonatypeRepo("releases")

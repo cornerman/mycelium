@@ -39,7 +39,7 @@ class JsWebsocketConnection[PickleType](implicit builder: JsMessageBuilder[Pickl
     sendMessages.flush()
   }
 
-  def run(location: String, listener: WebsocketListener[PickleType]) {
+  def run(location: String, listener: WebsocketListener[PickleType]): Unit = {
     import listener._
 
     val websocket = new WebSocket(location)
