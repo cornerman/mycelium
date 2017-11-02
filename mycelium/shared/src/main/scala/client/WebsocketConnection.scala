@@ -17,7 +17,6 @@ trait WebsocketConnection[PickleType] {
 }
 
 //TODO: cancel timers? akka schedule?
-//TODO: factory? builder?
 
 class ReconnectingWebsocketConnection[PickleType](connection: WebsocketConnection[PickleType], minimumBackoffMillis: Int) extends WebsocketConnection[PickleType] {
   private val timer = new Timer

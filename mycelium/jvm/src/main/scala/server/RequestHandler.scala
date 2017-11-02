@@ -2,7 +2,6 @@ package mycelium.server
 
 import scala.concurrent.Future
 
-//TODO get rid of publishevent? == Event?
 trait RequestHandler[Payload, Event, PublishEvent, Failure, State] {
   case class Reaction(state: Future[State], events: Future[Seq[Event]])
   case class Response(reaction: Reaction, result: Future[Either[Failure, Payload]])
