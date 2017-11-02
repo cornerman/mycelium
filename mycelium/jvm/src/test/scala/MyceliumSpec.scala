@@ -3,9 +3,11 @@ package test
 import mycelium.client._
 import mycelium.server._
 import mycelium.core._
+import mycelium.core.message._
 
 import akka.actor.ActorSystem
-import akka.stream.OverflowStrategy
+import akka.stream.{ActorMaterializer, OverflowStrategy}
+import akka.stream.scaladsl._
 import org.scalatest._
 import boopickle.Default._
 import scala.concurrent.Future
@@ -18,7 +20,7 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
   implicit val serializer = test.BoopickleSerializer
   implicit val system = ActorSystem()
 
-  type Payload = String
+  type Payload = Int
   type Event = String
   type PublishEvent = String
   type Failure = Int
@@ -30,7 +32,7 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
 
     val client = WebsocketClient[Pickler, Pickler, ByteBuffer, Payload, Event, Failure, State](config)
 
-    val res = client.send("foo" :: "bar" :: Nil, "harals")
+    val res = client.send("foo" :: "bar" :: Nil, 1)
 
     res.failed.map(_ mustEqual TimeoutException)
   }
@@ -40,14 +42,29 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
       ServerConfig.Flow(bufferSize = 5, overflowStrategy = OverflowStrategy.dropNew))
 
     val handler = new RequestHandler[Payload, Event, PublishEvent, Failure, State] {
-      def onClientConnect(client: NotifiableClient[PublishEvent]): State = ???
-      def onClientDisconnect(client: ClientIdentity, state: Future[State]): Unit = ???
-      def onRequest(client: ClientIdentity, state: Future[State], path: List[String], payload: Payload): Response = ???
+      def onClientConnect(client: NotifiableClient[PublishEvent]): State = "empty"
+      def onClientDisconnect(client: ClientIdentity, state: Future[State]): Unit = {}
+      def onRequest(client: ClientIdentity, state: Future[State], path: List[String], payload: Payload): Response =
+        Response(Reaction(state, Future.successful(Nil)), Future.successful(Right(payload)))
       def onEvent(client: ClientIdentity, state: Future[State], event: PublishEvent): Reaction = ???
     }
 
-    val client = WebsocketServerFlow[Pickler, Pickler, ByteBuffer, Payload, Event, PublishEvent, Failure, State](config, handler)
+    val flow = WebsocketServerFlow[Pickler, Pickler, ByteBuffer, Payload, Event, PublishEvent, Failure, State](config, handler)
 
-    true mustEqual true
+    val payloadValue = 1
+    val builder = implicitly[AkkaMessageBuilder[ByteBuffer]]
+    val request = CallRequest(1, "foo" :: "bar" :: Nil, payloadValue)
+    val msg = builder.pack(Pickle.intoBytes[ClientMessage[Payload]](request))
+
+    implicit val materializer = ActorMaterializer()
+    val (_, received) = flow.runWith(Source(msg :: Nil), Sink.head)
+    val response = received.map { msg =>
+      builder.unpack(msg).map { buf =>
+        Unpickle[ServerMessage[Payload, Event, Failure]].fromBytes(buf)
+      }
+    }
+
+    val expected = CallResponse(1, Right(payloadValue))
+    response.map(_ mustEqual Some(expected))
   }
 }
