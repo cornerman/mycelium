@@ -9,14 +9,13 @@ class WebsocketClient[Encoder[_], Decoder[_], PickleType, Payload, Event, Failur
   ws: WebsocketConnection[PickleType],
   handler: IncidentHandler[Event, Failure],
   requestTimeoutMillis: Int)(implicit
-  ec: ExecutionContext, //TODO needed for send#open(), maybe an implicit there?
   encoder: Encoder[ClientMessage[Payload]],
   decoder: Decoder[ServerMessage[Payload, Event, Failure]],
   serializer: Serializer[Encoder, Decoder, PickleType]) {
 
   private val callRequests = new OpenRequests[Either[Failure, Payload]](requestTimeoutMillis)
 
-  def send(path: List[String], payload: Payload): Future[Either[Failure, Payload]] = {
+  def send(path: List[String], payload: Payload)(implicit ec: ExecutionContext): Future[Either[Failure, Payload]] = {
     val (id, promise) = callRequests.open()
 
     val request = CallRequest(id, path, payload)
@@ -49,7 +48,6 @@ object WebsocketClient {
   def apply[Encoder[_], Decoder[_], PickleType, Payload, Event, Failure, State](
     config: ClientConfig,
     handler: IncidentHandler[Event, Failure])(implicit
-    ec: ExecutionContext,
     encoder: Encoder[ClientMessage[Payload]],
     decoder: Decoder[ServerMessage[Payload, Event, Failure]],
     serializer: Serializer[Encoder, Decoder, PickleType],
