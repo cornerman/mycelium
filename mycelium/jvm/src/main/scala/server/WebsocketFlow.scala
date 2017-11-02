@@ -9,16 +9,23 @@ import akka.http.scaladsl.model.ws.Message
 import akka.stream.scaladsl._
 import akka.stream.OverflowStrategy
 
+object ServerConfig {
+  case class Flow(bufferSize: Int, overflowStrategy: OverflowStrategy)
+}
+
+case class ServerConfig(
+  flowConfig: ServerConfig.Flow)
+
 object WebsocketServerFlow {
   def apply[Encoder[_], Decoder[_], PickleType, Payload, Event, PublishEvent, Failure, State](
-    handler: RequestHandler[Payload, Event, PublishEvent, Failure, State],
-    bufferSize: Int,
-    overflowStrategy: OverflowStrategy)(implicit
+    config: ServerConfig,
+    handler: RequestHandler[Payload, Event, PublishEvent, Failure, State])(implicit
     system: ActorSystem,
     encoder: Encoder[ServerMessage[Payload, Event, Failure]],
     decoder: Decoder[ClientMessage[Payload]],
     serializer: Serializer[Encoder, Decoder, PickleType],
     builder: AkkaMessageBuilder[PickleType]): Flow[Message, Message, NotUsed] = {
+    import config._
 
     val connectedClientActor = system.actorOf(Props(new ConnectedClient(handler)))
 
@@ -39,7 +46,7 @@ object WebsocketServerFlow {
       }.to(Sink.actorRef[ClientMessage[Payload]](connectedClientActor, ConnectedClient.Stop))
 
     val outgoing: Source[Message, NotUsed] =
-      Source.actorRef[ServerMessage[Payload, Event, Failure]](bufferSize = bufferSize, overflowStrategy = overflowStrategy)
+      Source.actorRef[ServerMessage[Payload, Event, Failure]](flowConfig.bufferSize, flowConfig.overflowStrategy)
         .mapMaterializedValue { outActor =>
           connectedClientActor ! ConnectedClient.Connect(outActor)
           NotUsed

@@ -26,7 +26,7 @@ object TimeoutPromise {
   }
 }
 
-class OpenRequests[T](timeoutMillis: Int = 60000) {
+class OpenRequests[T](timeoutMillis: Int) {
   import collection.mutable
 
   private val openRequests = mutable.HashMap.empty[SequenceId, Promise[T]]

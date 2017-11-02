@@ -11,9 +11,6 @@ trait WebsocketListener[PickleType] {
 trait WebsocketConnection[PickleType] {
   def send(value: PickleType): Unit
   def run(location: String, listener: WebsocketListener[PickleType]): Unit
-
-  def withPing(ping: PickleType, pingIdleMillis: Int) = new PingingWebsocketConnection(this, ping, pingIdleMillis)
-  def withReconnect(minimumBackoffMillis: Int) = new ReconnectingWebsocketConnection(this, minimumBackoffMillis)
 }
 
 //TODO: cancel timers? akka schedule?

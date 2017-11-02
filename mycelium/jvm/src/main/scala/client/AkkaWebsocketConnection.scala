@@ -72,3 +72,11 @@ class AkkaWebsocketConnection[PickleType](implicit system: ActorSystem, builder:
     closed.foreach(_ => listener.onClose())
   }
 }
+
+object NativeWebsocketConnection {
+  type System = ActorSystem
+  type Builder[PickleType] = AkkaMessageBuilder[PickleType]
+
+  def apply[PickleType](implicit system: System, builder: Builder[PickleType]): WebsocketConnection[PickleType] =
+    new AkkaWebsocketConnection[PickleType]
+}
