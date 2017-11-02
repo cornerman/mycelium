@@ -7,6 +7,7 @@ import scala.concurrent.{ ExecutionContext, Future }
 
 class WebsocketClient[Encoder[_], Decoder[_], PickleType, Payload, Event, Failure, State](
   ws: WebsocketConnection[PickleType],
+  handler: IncidentHandler[Event, Failure],
   requestTimeoutMillis: Int)(implicit
   ec: ExecutionContext, //TODO needed for send#open(), maybe an implicit there?
   encoder: Encoder[ClientMessage[Payload]],
@@ -25,7 +26,7 @@ class WebsocketClient[Encoder[_], Decoder[_], PickleType, Payload, Event, Failur
     promise.future
   }
 
-  def run(location: String, handler: IncidentHandler[Event, Failure]): Unit = ws.run(location, new WebsocketListener[PickleType] {
+  def run(location: String): Unit = ws.run(location, new WebsocketListener[PickleType] {
     private var wasClosed = false
     def onConnect() = handler.onConnect(wasClosed)
     def onClose() = wasClosed = true
@@ -46,7 +47,8 @@ class WebsocketClient[Encoder[_], Decoder[_], PickleType, Payload, Event, Failur
 
 object WebsocketClient {
   def apply[Encoder[_], Decoder[_], PickleType, Payload, Event, Failure, State](
-    config: ClientConfig)(implicit
+    config: ClientConfig,
+    handler: IncidentHandler[Event, Failure])(implicit
     ec: ExecutionContext,
     encoder: Encoder[ClientMessage[Payload]],
     decoder: Decoder[ServerMessage[Payload, Event, Failure]],
@@ -67,6 +69,6 @@ object WebsocketClient {
       )
 
       val conn = wrapper.foldLeft(nativeConn)((conn, wrap) => wrap(conn) getOrElse conn)
-      new WebsocketClient(conn, requestConfig.timeoutMillis)
+      new WebsocketClient(conn, handler, requestConfig.timeoutMillis)
     }
 }

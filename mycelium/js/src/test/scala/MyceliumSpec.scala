@@ -21,7 +21,12 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
     val config = ClientConfig(
       ClientConfig.Request(timeoutMillis = 1))
 
-    val client = WebsocketClient[Pickler, Pickler, ByteBuffer, Payload, Event, Failure, State](config)
+    val handler = new IncidentHandler[Event, Failure] {
+      def onConnect(reconnect: Boolean): Unit = ???
+      def onEvents(events: Seq[Event]): Unit = ???
+    }
+
+    val client = WebsocketClient[Pickler, Pickler, ByteBuffer, Payload, Event, Failure, State](config, handler)
 
     val res = client.send("foo" :: "bar" :: Nil, "harals")
 
