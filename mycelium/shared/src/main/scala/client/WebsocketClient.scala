@@ -55,7 +55,7 @@ object WebsocketClient {
     builder: NativeWebsocketConnection.Builder[PickleType]) = {
       import config._
 
-      val nativeConn: WebsocketConnection[PickleType] = NativeWebsocketConnection[PickleType]
+      val nativeConn = NativeWebsocketConnection[PickleType]
       val wrapper: List[WebsocketConnection[PickleType] => Option[WebsocketConnection[PickleType]]] = List(
         conn => pingConfig.map { c =>
           val serializedPing = serializer.serialize[ClientMessage[Payload]](Ping[Payload]())

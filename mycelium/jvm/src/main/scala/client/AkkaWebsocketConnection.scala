@@ -1,44 +1,31 @@
 package mycelium.client
 
 import mycelium.core.AkkaMessageBuilder
+import mycelium.util.AkkaHelper._
 
 import akka.actor.ActorSystem
 import akka.Done
 import akka.http.scaladsl.Http
 import akka.stream.{ ActorMaterializer, OverflowStrategy }
-import akka.stream.KillSwitches
 import akka.stream.scaladsl._
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.ws._
 
-import scala.concurrent.{ Promise, Future }
-
-object AkkaHelper {
-  implicit class PeekableSource[T, M](val src: Source[T, M]) extends AnyVal {
-    def peekMaterializedValue: (Source[T, M], Future[M]) = {
-      val p = Promise[M]
-      val s = src.mapMaterializedValue { m => p.trySuccess(m); m }
-      (s, p.future)
-    }
-  }
-}
-import AkkaHelper._
+import scala.concurrent.Future
 
 class AkkaWebsocketConnection[PickleType](implicit system: ActorSystem, builder: AkkaMessageBuilder[PickleType]) extends WebsocketConnection[PickleType] {
   private implicit val materializer = ActorMaterializer()
   import system.dispatcher
 
-  //TODO: killswitch not needed?
-  private val (outgoing, queueWithKill) = {
+  private val (outgoing, queue) = {
     val bufferSize = 250
     val overflowStrategy = OverflowStrategy.fail
     Source
       .queue[Message](bufferSize, overflowStrategy)
-      .viaMat(KillSwitches.single)(Keep.both)
       .peekMaterializedValue
   }
 
-  def send(value: PickleType): Unit = queueWithKill.foreach { case (queue, _) =>
+  def send(value: PickleType): Unit = queue.foreach { queue =>
     val message = builder.pack(value)
     queue offer message
   }
@@ -61,14 +48,14 @@ class AkkaWebsocketConnection[PickleType](implicit system: ActorSystem, builder:
         .run()
 
     val connected = upgradeResponse.map { upgrade =>
-      if (upgrade.response.status == StatusCodes.SwitchingProtocols) Done
+      if (upgrade.response.status == StatusCodes.SwitchingProtocols) Some(Done)
       else {
-        //TODO: error handling
-        throw new RuntimeException(s"Connection failed: ${upgrade.response.status}")
+        // TODO: log error
+        None
       }
     }
 
-    connected.foreach(_ => listener.onConnect())
+    connected.foreach(_.foreach(_ => listener.onConnect())) //TODO: do we need to close
     closed.foreach(_ => listener.onClose())
   }
 }
