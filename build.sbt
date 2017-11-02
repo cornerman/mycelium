@@ -42,6 +42,7 @@ lazy val mycelium = crossProject.
   settings(
     name := "mycelium",
     libraryDependencies ++=
+      Deps.boopickle.value % Test ::
       Deps.scalaTest.value % Test ::
       Nil
   )

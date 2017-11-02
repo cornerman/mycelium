@@ -1,4 +1,4 @@
-package mycelium
+package test.mycelium
 
 import org.scalatest._
 

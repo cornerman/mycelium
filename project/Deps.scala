@@ -15,4 +15,5 @@ object Deps {
     val actor = dep("com.typesafe.akka" %% "akka-actor" % version)
     val testkit = dep("com.typesafe.akka" %% "akka-testkit" % version)
   }
+  val boopickle = dep("io.suzaku" %%% "boopickle" % "1.2.6")
 }
