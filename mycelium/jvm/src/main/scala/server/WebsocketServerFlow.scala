@@ -17,7 +17,6 @@ object WebsocketServerFlow {
     decoder: Decoder[ClientMessage[Payload]],
     serializer: Serializer[Encoder, Decoder, PickleType],
     builder: AkkaMessageBuilder[PickleType]): Flow[Message, Message, NotUsed] = {
-    import config._
 
     val connectedClientActor = system.actorOf(Props(new ConnectedClient(handler)))
 
@@ -38,7 +37,7 @@ object WebsocketServerFlow {
       }.to(Sink.actorRef[ClientMessage[Payload]](connectedClientActor, ConnectedClient.Stop))
 
     val outgoing: Source[Message, NotUsed] =
-      Source.actorRef[ServerMessage[Payload, Event, Failure]](flowConfig.bufferSize, flowConfig.overflowStrategy)
+      Source.actorRef[ServerMessage[Payload, Event, Failure]](config.flow.bufferSize, config.flow.overflowStrategy)
         .mapMaterializedValue { outActor =>
           connectedClientActor ! ConnectedClient.Connect(outActor)
           NotUsed

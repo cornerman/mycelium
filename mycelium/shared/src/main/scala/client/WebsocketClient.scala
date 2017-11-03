@@ -51,20 +51,6 @@ object WebsocketClient {
     handler: IncidentHandler[Event, Failure])(implicit
     encoder: Encoder[ClientMessage[Payload]],
     decoder: Decoder[ServerMessage[Payload, Event, Failure]],
-    serializer: Serializer[Encoder, Decoder, PickleType]) = {
-      import config._
-
-      val wrapper: List[WebsocketConnection[PickleType] => Option[WebsocketConnection[PickleType]]] = List(
-        conn => pingConfig.map { c =>
-          val serializedPing = serializer.serialize[ClientMessage[Payload]](Ping[Payload]())
-          new PingingWebsocketConnection(conn, serializedPing, c.timeoutMillis)
-        },
-        conn => reconnectConfig.map { c =>
-          new ReconnectingWebsocketConnection(conn, c.minimumBackoffMillis)
-        }
-      )
-
-      val wrappedConn = wrapper.foldLeft(connection)((conn, wrap) => wrap(conn) getOrElse conn)
-      new WebsocketClient(wrappedConn, handler, requestConfig.timeoutMillis)
-    }
+    serializer: Serializer[Encoder, Decoder, PickleType]) =
+      new WebsocketClient(connection, handler, config.request.timeoutMillis)
 }

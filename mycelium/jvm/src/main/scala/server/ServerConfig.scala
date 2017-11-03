@@ -7,4 +7,4 @@ object ServerConfig {
 }
 
 case class ServerConfig(
-  flowConfig: ServerConfig.Flow)
+  flow: ServerConfig.Flow)

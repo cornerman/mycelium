@@ -8,7 +8,12 @@ trait WebsocketListener[PickleType] {
   def onClose(): Unit
 }
 
-trait WebsocketConnection[PickleType] {
+trait WebsocketConnectionBuilder[PickleType] { this: WebsocketConnection[PickleType] =>
+  def withPing(ping: PickleType, pingIdleMillis: Int) = new PingingWebsocketConnection(this, ping, pingIdleMillis)
+  def withReconnect(minimumBackoffMillis: Int) = new ReconnectingWebsocketConnection(this, minimumBackoffMillis)
+}
+
+trait WebsocketConnection[PickleType] extends WebsocketConnectionBuilder[PickleType] {
   def send(value: PickleType): Unit
   def run(location: String, listener: WebsocketListener[PickleType]): Unit
 }
