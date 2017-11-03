@@ -76,6 +76,6 @@ object NativeWebsocketConnection {
   type System = DummyImplicit
   type Builder[PickleType] = JsMessageBuilder[PickleType]
 
-  def apply[PickleType](implicit builder: Builder[PickleType]): WebsocketConnection[PickleType] =
+  def apply[PickleType](implicit builder: JsMessageBuilder[PickleType]): WebsocketConnection[PickleType] =
     new JsWebsocketConnection[PickleType]
 }

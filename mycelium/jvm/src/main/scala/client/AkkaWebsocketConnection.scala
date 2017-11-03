@@ -64,6 +64,6 @@ object NativeWebsocketConnection {
   type System = ActorSystem
   type Builder[PickleType] = AkkaMessageBuilder[PickleType]
 
-  def apply[PickleType](implicit system: System, builder: Builder[PickleType]): WebsocketConnection[PickleType] =
+  def apply[PickleType](implicit system: ActorSystem, builder: AkkaMessageBuilder[PickleType]): WebsocketConnection[PickleType] =
     new AkkaWebsocketConnection[PickleType]
 }
