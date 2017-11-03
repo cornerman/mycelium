@@ -15,7 +15,6 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
   type Payload = String
   type Event = String
   type Failure = Int
-  type State = String
 
   "client" in {
     val config = ClientConfig(
@@ -26,7 +25,7 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
       def onEvents(events: Seq[Event]): Unit = ???
     }
 
-    val client = WebsocketClient[Pickler, Pickler, ByteBuffer, Payload, Event, Failure, State](config, handler)
+    val client = WebsocketClient[Pickler, Pickler, ByteBuffer, Payload, Event, Failure](config, handler)
 
     val res = client.send("foo" :: "bar" :: Nil, "harals")
 

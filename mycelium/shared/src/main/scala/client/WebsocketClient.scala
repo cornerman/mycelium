@@ -5,7 +5,7 @@ import mycelium.core.message._
 
 import scala.concurrent.{ ExecutionContext, Future }
 
-class WebsocketClient[Encoder[_], Decoder[_], PickleType, Payload, Event, Failure, State](
+class WebsocketClient[Encoder[_], Decoder[_], PickleType, Payload, Event, Failure](
   ws: WebsocketConnection[PickleType],
   handler: IncidentHandler[Event, Failure],
   requestTimeoutMillis: Int)(implicit
@@ -45,7 +45,7 @@ class WebsocketClient[Encoder[_], Decoder[_], PickleType, Payload, Event, Failur
 }
 
 object WebsocketClient {
-  def apply[Encoder[_], Decoder[_], PickleType, Payload, Event, Failure, State](
+  def apply[Encoder[_], Decoder[_], PickleType, Payload, Event, Failure](
     config: ClientConfig,
     handler: IncidentHandler[Event, Failure])(implicit
     encoder: Encoder[ClientMessage[Payload]],
