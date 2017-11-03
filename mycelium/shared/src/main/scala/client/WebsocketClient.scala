@@ -7,7 +7,7 @@ import scala.concurrent.{ ExecutionContext, Future }
 
 class WebsocketClient[Encoder[_], Decoder[_], PickleType, Payload, Event, Failure](
   ws: WebsocketConnection[PickleType],
-  handler: IncidentHandler[Event, Failure],
+  handler: IncidentHandler[Event],
   requestTimeoutMillis: Int)(implicit
   encoder: Encoder[ClientMessage[Payload]],
   decoder: Decoder[ServerMessage[Payload, Event, Failure]],
@@ -48,7 +48,7 @@ object WebsocketClient {
   def apply[Encoder[_], Decoder[_], PickleType, Payload, Event, Failure](
     connection: WebsocketConnection[PickleType],
     config: ClientConfig,
-    handler: IncidentHandler[Event, Failure])(implicit
+    handler: IncidentHandler[Event])(implicit
     encoder: Encoder[ClientMessage[Payload]],
     decoder: Decoder[ServerMessage[Payload, Event, Failure]],
     serializer: Serializer[Encoder, Decoder, PickleType]) =

@@ -30,7 +30,7 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
     val config = ClientConfig(
       ClientConfig.Request(timeoutMillis = 1))
 
-    val handler = new IncidentHandler[Event, Failure] {
+    val handler = new IncidentHandler[Event] {
       def onConnect(reconnect: Boolean): Unit = ???
       def onEvents(events: Seq[Event]): Unit = ???
     }
