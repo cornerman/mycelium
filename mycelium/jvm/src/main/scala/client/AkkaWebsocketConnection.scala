@@ -18,6 +18,7 @@ class AkkaWebsocketConnection[PickleType](implicit system: ActorSystem, builder:
   import system.dispatcher
 
   private val (outgoing, queue) = {
+    //TODO configurable
     val bufferSize = 250
     val overflowStrategy = OverflowStrategy.fail
     Source
@@ -58,12 +59,4 @@ class AkkaWebsocketConnection[PickleType](implicit system: ActorSystem, builder:
     connected.foreach(_.foreach(_ => listener.onConnect())) //TODO: do we need to close
     closed.foreach(_ => listener.onClose())
   }
-}
-
-object NativeWebsocketConnection {
-  type System = ActorSystem
-  type Builder[PickleType] = AkkaMessageBuilder[PickleType]
-
-  def apply[PickleType](implicit system: ActorSystem, builder: AkkaMessageBuilder[PickleType]): WebsocketConnection[PickleType] =
-    new AkkaWebsocketConnection[PickleType]
 }

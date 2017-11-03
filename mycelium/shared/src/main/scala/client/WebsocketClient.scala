@@ -46,16 +46,14 @@ class WebsocketClient[Encoder[_], Decoder[_], PickleType, Payload, Event, Failur
 
 object WebsocketClient {
   def apply[Encoder[_], Decoder[_], PickleType, Payload, Event, Failure](
+    connection: WebsocketConnection[PickleType],
     config: ClientConfig,
     handler: IncidentHandler[Event, Failure])(implicit
     encoder: Encoder[ClientMessage[Payload]],
     decoder: Decoder[ServerMessage[Payload, Event, Failure]],
-    serializer: Serializer[Encoder, Decoder, PickleType],
-    system: NativeWebsocketConnection.System,
-    builder: NativeWebsocketConnection.Builder[PickleType]) = {
+    serializer: Serializer[Encoder, Decoder, PickleType]) = {
       import config._
 
-      val nativeConn = NativeWebsocketConnection[PickleType]
       val wrapper: List[WebsocketConnection[PickleType] => Option[WebsocketConnection[PickleType]]] = List(
         conn => pingConfig.map { c =>
           val serializedPing = serializer.serialize[ClientMessage[Payload]](Ping[Payload]())
@@ -66,7 +64,7 @@ object WebsocketClient {
         }
       )
 
-      val conn = wrapper.foldLeft(nativeConn)((conn, wrap) => wrap(conn) getOrElse conn)
-      new WebsocketClient(conn, handler, requestConfig.timeoutMillis)
+      val wrappedConn = wrapper.foldLeft(connection)((conn, wrap) => wrap(conn) getOrElse conn)
+      new WebsocketClient(wrappedConn, handler, requestConfig.timeoutMillis)
     }
 }
