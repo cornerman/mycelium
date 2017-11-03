@@ -1,20 +1,11 @@
 package mycelium.client
 
 import mycelium.core.JsMessageBuilder
+import mycelium.util.BufferedFunction
 
 import org.scalajs.dom._
 import scala.scalajs.js.typedarray.ArrayBuffer
 import scala.util.Try
-
-class BufferedFunction[T](f: T => Boolean) extends (T => Unit) {
-  private var queue = List.empty[T]
-
-  def apply(value: T): Unit = queue = value :: queue
-  def flush(): Unit = queue = queue.reverse.dropWhile(f).reverse
-}
-object BufferedFunction {
-  def apply[T](f: T => Boolean): BufferedFunction[T] = new BufferedFunction(f)
-}
 
 class JsWebsocketConnection[PickleType](implicit builder: JsMessageBuilder[PickleType]) extends WebsocketConnection[PickleType] {
   private var wsOpt: Option[WebSocket] = None
