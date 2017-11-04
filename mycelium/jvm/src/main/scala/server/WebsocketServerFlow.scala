@@ -11,13 +11,12 @@ import akka.stream.scaladsl._
 object WebsocketServerFlow {
   type Type = Flow[Message, Message, NotUsed]
 
-  def apply[Encoder[_], Decoder[_], PickleType, Payload, Event, PublishEvent, Failure, State](
+  def apply[PickleType, Payload, Event, PublishEvent, Failure, State](
     config: ServerConfig,
     handler: RequestHandler[Payload, Event, PublishEvent, Failure, State])(implicit
     system: ActorSystem,
-    encoder: Encoder[ServerMessage[Payload, Event, Failure]],
-    decoder: Decoder[ClientMessage[Payload]],
-    serializer: Serializer[Encoder, Decoder, PickleType],
+    writer: Writer[ServerMessage[Payload, Event, Failure], PickleType],
+    reader: Reader[ClientMessage[Payload], PickleType],
     builder: AkkaMessageBuilder[PickleType]): Type = {
 
     val connectedClientActor = system.actorOf(Props(new ConnectedClient(handler)))
@@ -27,7 +26,7 @@ object WebsocketServerFlow {
         case m: Message =>
           val result = for {
             value <- builder.unpack(m).toRight(s"Cannot handle message: $m")
-            msg <- serializer.deserialize[ClientMessage[Payload]](value).left.map(_.getMessage)
+            msg <- reader.read(value).left.map(_.getMessage)
           } yield msg
 
           result match {
@@ -44,7 +43,7 @@ object WebsocketServerFlow {
           connectedClientActor ! ConnectedClient.Connect(outActor)
           NotUsed
         }.map { msg =>
-          val value = serializer.serialize(msg)
+          val value = writer.write(msg)
           builder.pack(value)
         }
 

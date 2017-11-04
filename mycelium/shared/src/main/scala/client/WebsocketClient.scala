@@ -9,9 +9,8 @@ class WebsocketClient[Encoder[_], Decoder[_], PickleType, Payload, Event, Failur
   ws: WebsocketConnection[PickleType],
   handler: IncidentHandler[Event],
   requestTimeoutMillis: Int)(implicit
-  encoder: Encoder[ClientMessage[Payload]],
-  decoder: Decoder[ServerMessage[Payload, Event, Failure]],
-  serializer: Serializer[Encoder, Decoder, PickleType]) {
+  writer: Writer[ClientMessage[Payload], PickleType],
+  reader: Reader[ServerMessage[Payload, Event, Failure], PickleType]) {
 
   private val callRequests = new OpenRequests[Either[Failure, Payload]](requestTimeoutMillis)
 
@@ -19,7 +18,7 @@ class WebsocketClient[Encoder[_], Decoder[_], PickleType, Payload, Event, Failur
     val (id, promise) = callRequests.open()
 
     val request = CallRequest(id, path, payload)
-    val serialized = serializer.serialize[ClientMessage[Payload]](request)
+    val serialized = writer.write(request)
     ws.send(serialized)
 
     promise.future
@@ -30,7 +29,7 @@ class WebsocketClient[Encoder[_], Decoder[_], PickleType, Payload, Event, Failur
     def onConnect() = handler.onConnect(wasClosed)
     def onClose() = wasClosed = true
     def onMessage(msg: PickleType): Unit = {
-      serializer.deserialize[ServerMessage[Payload, Event, Failure]](msg) match {
+      reader.read(msg) match {
         case Right(CallResponse(seqId, result: Either[Failure@unchecked, Payload@unchecked])) =>
           callRequests.get(seqId).foreach(_ trySuccess result)
         case Right(Notification(events: List[Event@unchecked])) =>
@@ -45,12 +44,11 @@ class WebsocketClient[Encoder[_], Decoder[_], PickleType, Payload, Event, Failur
 }
 
 object WebsocketClient {
-  def apply[Encoder[_], Decoder[_], PickleType, Payload, Event, Failure](
+  def apply[PickleType, Payload, Event, Failure](
     connection: WebsocketConnection[PickleType],
     config: ClientConfig,
     handler: IncidentHandler[Event])(implicit
-    encoder: Encoder[ClientMessage[Payload]],
-    decoder: Decoder[ServerMessage[Payload, Event, Failure]],
-    serializer: Serializer[Encoder, Decoder, PickleType]) =
+    writer: Writer[ClientMessage[Payload], PickleType],
+    reader: Reader[ServerMessage[Payload, Event, Failure], PickleType]) =
       new WebsocketClient(connection, handler, config.request.timeoutMillis)
 }

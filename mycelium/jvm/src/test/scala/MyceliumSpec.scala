@@ -17,7 +17,7 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
   //TODO: why does it need executionContext
   implicit override def executionContext = scala.concurrent.ExecutionContext.Implicits.global
 
-  implicit val serializer = test.BoopickleSerializer
+  implicit def serializer[T : Pickler] = new BoopickleSerializer[T]
   implicit val system = ActorSystem()
 
   type Payload = Int
@@ -35,7 +35,7 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
       def onEvents(events: Seq[Event]): Unit = ???
     }
 
-    val client = WebsocketClient[Pickler, Pickler, ByteBuffer, Payload, Event, Failure](NativeWebsocket.akka, config, handler)
+    val client = WebsocketClient[ByteBuffer, Payload, Event, Failure](NativeWebsocket.akka, config, handler)
 
     val res = client.send("foo" :: "bar" :: Nil, 1)
 
@@ -54,7 +54,7 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
       def onEvent(client: ClientIdentity, state: Future[State], event: PublishEvent): Reaction = ???
     }
 
-    val flow = WebsocketServerFlow[Pickler, Pickler, ByteBuffer, Payload, Event, PublishEvent, Failure, State](config, handler)
+    val flow = WebsocketServerFlow[ByteBuffer, Payload, Event, PublishEvent, Failure, State](config, handler)
 
     val payloadValue = 1
     val builder = implicitly[AkkaMessageBuilder[ByteBuffer]]
