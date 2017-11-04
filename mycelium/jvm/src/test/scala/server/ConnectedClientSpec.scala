@@ -13,7 +13,7 @@ import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.collection.mutable
 
-class TestRequestHandler(eventActor: ActorRef) extends RequestHandler[ByteBuffer, String, String, String, Option[String]] {
+class TestRequestHandler extends RequestHandler[ByteBuffer, String, String, String, Option[String]] {
   val clients = mutable.HashMap.empty[ClientIdentity, NotifiableClient[String]]
   val events = mutable.ArrayBuffer.empty[String]
 
@@ -67,7 +67,7 @@ class TestRequestHandler(eventActor: ActorRef) extends RequestHandler[ByteBuffer
 
 class ConnectedClientSpec extends TestKit(ActorSystem("ConnectedClientSpec")) with ImplicitSender with FreeSpecLike with MustMatchers {
 
-  def requestHandler = new TestRequestHandler(self)
+  def requestHandler = new TestRequestHandler
   def newActor(handler: TestRequestHandler = requestHandler): ActorRef = TestActorRef(new ConnectedClient(handler))
   def connectActor(actor: ActorRef, shouldConnect: Boolean = true) = {
     actor ! ConnectedClient.Connect(self)
