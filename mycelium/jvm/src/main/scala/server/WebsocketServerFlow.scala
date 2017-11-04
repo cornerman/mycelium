@@ -9,6 +9,8 @@ import akka.http.scaladsl.model.ws.Message
 import akka.stream.scaladsl._
 
 object WebsocketServerFlow {
+  type Type = Flow[Message, Message, NotUsed]
+
   def apply[Encoder[_], Decoder[_], PickleType, Payload, Event, PublishEvent, Failure, State](
     config: ServerConfig,
     handler: RequestHandler[Payload, Event, PublishEvent, Failure, State])(implicit
@@ -16,7 +18,7 @@ object WebsocketServerFlow {
     encoder: Encoder[ServerMessage[Payload, Event, Failure]],
     decoder: Decoder[ClientMessage[Payload]],
     serializer: Serializer[Encoder, Decoder, PickleType],
-    builder: AkkaMessageBuilder[PickleType]): Flow[Message, Message, NotUsed] = {
+    builder: AkkaMessageBuilder[PickleType]): Type = {
 
     val connectedClientActor = system.actorOf(Props(new ConnectedClient(handler)))
 
