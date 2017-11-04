@@ -8,6 +8,8 @@ trait WebsocketListener[PickleType] {
   def onClose(): Unit
 }
 
+// TODO: more typesafe builder? no double ping.
+// TODO: do not clutter websocketconnection type with builder functions
 trait WebsocketConnectionBuilder[PickleType] { this: WebsocketConnection[PickleType] =>
   def withPing(ping: PickleType, pingIdleMillis: Int) = new PingingWebsocketConnection(this, ping, pingIdleMillis)
   def withReconnect(minimumBackoffMillis: Int) = new ReconnectingWebsocketConnection(this, minimumBackoffMillis)
