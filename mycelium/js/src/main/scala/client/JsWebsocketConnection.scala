@@ -53,11 +53,12 @@ class JsWebsocketConnection[PickleType](implicit builder: JsMessageBuilder[Pickl
         case s: String => builder.unpack(s)
         case a: ArrayBuffer => builder.unpack(a)
         case b: Blob => builder.unpack(b)
+        case _ => None
       }
 
       value match {
         case Some(value) => onMessage(value)
-        case None => //TODO log error
+        case None => scribe.warn(s"Unsupported websocket message: ${e.data}")
       }
     }
   }

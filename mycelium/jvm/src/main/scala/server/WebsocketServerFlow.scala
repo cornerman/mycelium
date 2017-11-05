@@ -25,15 +25,16 @@ object WebsocketServerFlow {
       Flow[Message].mapConcat {
         case m: Message =>
           val result = for {
-            value <- builder.unpack(m).toRight(s"Cannot handle message: $m")
+            value <- builder.unpack(m).toRight(s"Unsupported '$m'")
             msg <- reader.read(value).left.map(_.getMessage)
           } yield msg
 
           result match {
-            case Right(r) => List(r)
-            case Left(t) =>
-              //TODO log error
-              List.empty
+            case Right(res) =>
+              res :: Nil
+            case Left(err) =>
+              scribe.warn(s"Error reading incoming websocket message: $err")
+              Nil
           }
       }.to(Sink.actorRef[ClientMessage[Payload]](connectedClientActor, ConnectedClient.Stop))
 

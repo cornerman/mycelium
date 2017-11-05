@@ -37,17 +37,14 @@ class OpenRequests[T](timeoutMillis: Int) {
   }
 
   def open()(implicit ctx: ExecutionContext): (SequenceId, Promise[T]) = {
-    // val stopwatch = StopWatch.started
+    // val stopwatch = StopWatch.started //TODO stopwatch?
     val promise = TimeoutPromise[T](timeoutMillis)
     val seqId = nextSeqId()
     openRequests += seqId -> promise
     promise.future onComplete { res =>
       openRequests -= seqId
-      // println(s"Request $seqId: ${stopwatch.readMillis}ms") //TODO
-      res.failed.foreach {
-        case err =>
-          println(s"Request $seqId failed: $err") //TODO logging
-      }
+      // scribe.warn(s"Request $seqId: ${stopwatch.readMillis}ms")
+      res.failed.foreach(err => scribe.error(s"Request $seqId failed: $err"))
     }
 
     seqId -> promise

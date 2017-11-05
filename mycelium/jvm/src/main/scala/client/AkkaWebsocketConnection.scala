@@ -36,7 +36,7 @@ class AkkaWebsocketConnection[PickleType](implicit system: ActorSystem, builder:
       Sink.foreach[Message] { message =>
         builder.unpack(message) match {
           case Some(value) => listener.onMessage(value)
-          case None => //TODO log error
+          case None => scribe.error(s"Unsupported websocket message: $message")
         }
       }
 
@@ -51,12 +51,12 @@ class AkkaWebsocketConnection[PickleType](implicit system: ActorSystem, builder:
     val connected = upgradeResponse.map { upgrade =>
       if (upgrade.response.status == StatusCodes.SwitchingProtocols) Some(Done)
       else {
-        // TODO: log error
+        scribe.error("Failed to open websocket connection: unable to upgrade request")
         None
       }
     }
 
-    connected.foreach(_.foreach(_ => listener.onConnect())) //TODO: do we need to close
+    connected.foreach(_.foreach(_ => listener.onConnect())) //TODO: do we need to close, if connect failed?
     closed.foreach(_ => listener.onClose())
   }
 }

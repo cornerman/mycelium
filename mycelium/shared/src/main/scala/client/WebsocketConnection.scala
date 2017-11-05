@@ -41,13 +41,13 @@ class ReconnectingWebsocketConnection[PickleType](connection: WebsocketConnectio
       def onConnect(): Unit = {
         connectionAttempts = 0
         listener.onConnect()
-        println(s"websocket is open: $location") //TODO logging
+        scribe.info(s"websocket is open: $location")
       }
       def onMessage(value: PickleType): Unit = listener.onMessage(value)
       def onClose(): Unit = {
         connectionAttempts += 1
         listener.onClose()
-        println(s"websocket is closed, will attempt to reconnect in ${(backoffInterval / 1000.0).ceil} seconds") //TODO logging
+        scribe.info(s"Websocket is closed, will attempt to reconnect in ${(backoffInterval / 1000.0).ceil} seconds")
         val task = new TimerTask { def run() = connection.run(location, wsThis) }
         timer.schedule(task, backoffInterval)
       }
