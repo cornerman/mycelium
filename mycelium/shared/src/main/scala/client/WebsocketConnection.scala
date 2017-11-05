@@ -1,5 +1,8 @@
 package mycelium.client
 
+import mycelium.core._
+import mycelium.core.message._
+
 import java.util.{Timer, TimerTask}
 
 trait WebsocketListener[PickleType] {
@@ -8,16 +11,16 @@ trait WebsocketListener[PickleType] {
   def onClose(): Unit
 }
 
-// TODO: more typesafe builder? no double ping.
-// TODO: do not clutter websocketconnection type with builder functions
-trait WebsocketConnectionBuilder[PickleType] { this: WebsocketConnection[PickleType] =>
-  def withPing(ping: PickleType, pingIdleMillis: Int) = new PingingWebsocketConnection(this, ping, pingIdleMillis)
-  def withReconnect(minimumBackoffMillis: Int) = new ReconnectingWebsocketConnection(this, minimumBackoffMillis)
-}
-
-trait WebsocketConnection[PickleType] extends WebsocketConnectionBuilder[PickleType] {
+trait WebsocketConnection[PickleType] {
   def send(value: PickleType): Unit
   def run(location: String, listener: WebsocketListener[PickleType]): Unit
+}
+object WebsocketConnection {
+  def withPing[PickleType, Payload](conn: WebsocketConnection[PickleType])(pingIdleMillis: Int)(implicit writer: Writer[ClientMessage[Payload], PickleType]) = {
+    val serializedPing = writer.write(Ping())
+    new PingingWebsocketConnection[PickleType](conn, serializedPing, pingIdleMillis)
+  }
+  def withReconnect[PickleType](conn: WebsocketConnection[PickleType])(minimumBackoffMillis: Int) = new ReconnectingWebsocketConnection[PickleType](conn, minimumBackoffMillis)
 }
 
 //TODO: cancel timers? akka schedule?

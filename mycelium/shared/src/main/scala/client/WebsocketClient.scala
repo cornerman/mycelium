@@ -43,12 +43,23 @@ class WebsocketClient[PickleType, Payload, Event, Failure](
   })
 }
 
-object WebsocketClient {
+object WebsocketClient extends NativeWebsocketClient
+
+private[mycelium] object WebsocketClientFactory {
   def apply[PickleType, Payload, Event, Failure](
     connection: WebsocketConnection[PickleType],
     config: ClientConfig,
     handler: IncidentHandler[Event])(implicit
     writer: Writer[ClientMessage[Payload], PickleType],
-    reader: Reader[ServerMessage[Payload, Event, Failure], PickleType]) =
-      new WebsocketClient(connection, handler, config.request.timeoutMillis)
+    reader: Reader[ServerMessage[Payload, Event, Failure], PickleType]) = {
+      val wrapper =
+        { conn: WebsocketConnection[PickleType] =>
+          config.ping.fold(conn)(c => WebsocketConnection.withPing(conn)(c.timeoutMillis))
+        } andThen
+        { conn: WebsocketConnection[PickleType] =>
+          config.reconnect.fold(conn)(c => WebsocketConnection.withReconnect(conn)(c.minimumBackoffMillis))
+        }
+
+      new WebsocketClient(wrapper(connection), handler, config.request.timeoutMillis)
+    }
 }
