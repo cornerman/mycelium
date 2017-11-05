@@ -35,7 +35,7 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
       def onEvents(events: Seq[Event]): Unit = ???
     }
 
-    val client = WebsocketClient[ByteBuffer, Payload, Event, Failure](config, handler)
+    val client = WebsocketClient.withPayload[ByteBuffer, Payload, Event, Failure](config, handler)
 
     val res = client.send("foo" :: "bar" :: Nil, 1)
 
@@ -54,7 +54,7 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
       def onEvent(client: ClientIdentity, state: Future[State], event: PublishEvent): Reaction = ???
     }
 
-    val flow = WebsocketServerFlow[ByteBuffer, Payload, Event, PublishEvent, Failure, State](config, handler)
+    val flow = WebsocketServerFlow.withPayload[ByteBuffer, Payload, Event, PublishEvent, Failure, State](config, handler)
 
     val payloadValue = 1
     val builder = implicitly[AkkaMessageBuilder[ByteBuffer]]

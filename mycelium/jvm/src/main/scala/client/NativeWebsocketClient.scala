@@ -5,7 +5,15 @@ import mycelium.core.message._
 import akka.actor.ActorSystem
 
 trait NativeWebsocketClient {
-  def apply[PickleType : AkkaMessageBuilder, Payload, Event, Failure](
+  def apply[PickleType : AkkaMessageBuilder, Event, Failure](
+    config: ClientConfig,
+    handler: IncidentHandler[Event])(implicit
+    system: ActorSystem,
+    writer: Writer[ClientMessage[PickleType], PickleType],
+    reader: Reader[ServerMessage[PickleType, Event, Failure], PickleType]) =
+      withPayload[PickleType, PickleType, Event, Failure](config, handler)
+
+  def withPayload[PickleType : AkkaMessageBuilder, Payload, Event, Failure](
     config: ClientConfig,
     handler: IncidentHandler[Event])(implicit
     system: ActorSystem,

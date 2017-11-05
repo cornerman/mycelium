@@ -4,7 +4,14 @@ import mycelium.core._
 import mycelium.core.message._
 
 trait NativeWebsocketClient {
-  def apply[PickleType : JsMessageBuilder, Payload, Event, Failure](
+  def apply[PickleType : JsMessageBuilder, Event, Failure](
+    config: ClientConfig,
+    handler: IncidentHandler[Event])(implicit
+    writer: Writer[ClientMessage[PickleType], PickleType],
+    reader: Reader[ServerMessage[PickleType, Event, Failure], PickleType]) =
+      withPayload[PickleType, PickleType, Event, Failure](config, handler)
+
+  def withPayload[PickleType : JsMessageBuilder, Payload, Event, Failure](
     config: ClientConfig,
     handler: IncidentHandler[Event])(implicit
     writer: Writer[ClientMessage[Payload], PickleType],

@@ -11,7 +11,16 @@ import akka.stream.scaladsl._
 object WebsocketServerFlow {
   type Type = Flow[Message, Message, NotUsed]
 
-  def apply[PickleType, Payload, Event, PublishEvent, Failure, State](
+  def apply[PickleType, Event, PublishEvent, Failure, State](
+    config: ServerConfig,
+    handler: RequestHandler[PickleType, Event, PublishEvent, Failure, State])(implicit
+    system: ActorSystem,
+    writer: Writer[ServerMessage[PickleType, Event, Failure], PickleType],
+    reader: Reader[ClientMessage[PickleType], PickleType],
+    builder: AkkaMessageBuilder[PickleType]): Type =
+      withPayload[PickleType, PickleType, Event, PublishEvent, Failure, State](config, handler)
+
+  def withPayload[PickleType, Payload, Event, PublishEvent, Failure, State](
     config: ServerConfig,
     handler: RequestHandler[Payload, Event, PublishEvent, Failure, State])(implicit
     system: ActorSystem,
