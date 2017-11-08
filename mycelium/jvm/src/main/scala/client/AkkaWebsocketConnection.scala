@@ -36,7 +36,7 @@ class AkkaWebsocketConnection[PickleType](implicit system: ActorSystem, builder:
       Sink.foreach[Message] { message =>
         builder.unpack(message) match {
           case Some(value) => listener.onMessage(value)
-          case None => scribe.error(s"Unsupported websocket message: $message")
+          case None => scribe.warn(s"Ignorning websocket message. Builder does not support message: $message")
         }
       }
 

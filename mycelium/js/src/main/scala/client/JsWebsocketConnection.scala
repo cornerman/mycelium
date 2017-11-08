@@ -58,7 +58,7 @@ class JsWebsocketConnection[PickleType](implicit builder: JsMessageBuilder[Pickl
 
       value match {
         case Some(value) => onMessage(value)
-        case None => scribe.warn(s"Unsupported websocket message: ${e.data}")
+        case None => scribe.warn(s"Ignoring websocket message. Builder does not support message: ${e.data}")
       }
     }
   }
