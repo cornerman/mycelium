@@ -43,10 +43,8 @@ class WebsocketClient[PickleType, Payload, Event, Failure](
   })
 }
 
-object WebsocketClient extends NativeWebsocketClient
-
-private[mycelium] object WebsocketClientFactory {
-  def apply[PickleType, Payload, Event, Failure](
+object WebsocketClient extends NativeWebsocketClient {
+  def factory[PickleType, Payload, Event, Failure](
     connection: WebsocketConnection[PickleType],
     config: ClientConfig,
     handler: IncidentHandler[Event])(implicit

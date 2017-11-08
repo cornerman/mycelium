@@ -19,5 +19,5 @@ trait NativeWebsocketClient {
     system: ActorSystem,
     writer: Writer[ClientMessage[Payload], PickleType],
     reader: Reader[ServerMessage[Payload, Event, Failure], PickleType]) =
-      WebsocketClientFactory(new AkkaWebsocketConnection, config, handler)
+      WebsocketClient.factory(new AkkaWebsocketConnection, config, handler)
 }

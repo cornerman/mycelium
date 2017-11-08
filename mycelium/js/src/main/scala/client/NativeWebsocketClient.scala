@@ -16,5 +16,5 @@ trait NativeWebsocketClient {
     handler: IncidentHandler[Event])(implicit
     writer: Writer[ClientMessage[Payload], PickleType],
     reader: Reader[ServerMessage[Payload, Event, Failure], PickleType]) =
-      WebsocketClientFactory(new JsWebsocketConnection, config, handler)
+      WebsocketClient.factory(new JsWebsocketConnection, config, handler)
 }
