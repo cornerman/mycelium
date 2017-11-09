@@ -35,7 +35,9 @@ class JsWebsocketConnection[PickleType](implicit builder: JsMessageBuilder[Pickl
 
     val websocket = new WebSocket(location)
 
-    websocket.onerror = (e: ErrorEvent) => console.log("error", e)
+    websocket.onerror = { (e: ErrorEvent) =>
+      scribe.warn(s"Error in websocket: $e")
+    }
 
     websocket.onopen = { (_: Event) =>
       wsOpt = Option(websocket)
