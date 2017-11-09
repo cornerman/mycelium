@@ -19,6 +19,7 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
 
   implicit def serializer[T : Pickler] = new BoopickleSerializer[T]
   implicit val system = ActorSystem()
+  implicit val materializer = ActorMaterializer()
 
   type Payload = Int
   type Event = String
@@ -61,7 +62,6 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
     val request = CallRequest(1, "foo" :: "bar" :: Nil, payloadValue)
     val msg = builder.pack(Pickle.intoBytes[ClientMessage[Payload]](request))
 
-    implicit val materializer = ActorMaterializer()
     val (_, received) = flow.runWith(Source(msg :: Nil), Sink.head)
     val response = received.map { msg =>
       builder.unpack(msg).map { buf =>

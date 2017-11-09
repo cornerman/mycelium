@@ -13,8 +13,7 @@ import akka.http.scaladsl.model.ws._
 
 import scala.concurrent.Future
 
-class AkkaWebsocketConnection[PickleType](implicit system: ActorSystem, builder: AkkaMessageBuilder[PickleType]) extends WebsocketConnection[PickleType] {
-  private implicit val materializer = ActorMaterializer()
+class AkkaWebsocketConnection[PickleType](implicit system: ActorSystem, materializer: ActorMaterializer, builder: AkkaMessageBuilder[PickleType]) extends WebsocketConnection[PickleType] {
   import system.dispatcher
 
   private val (outgoing, queue) = {
