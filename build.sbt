@@ -37,8 +37,6 @@ lazy val commonSettings = Seq(
   }
 )
 
-enablePlugins(ScalaJSPlugin)
-
 lazy val root = (project in file("."))
   .aggregate(myceliumJS, myceliumJVM)
   .settings(commonSettings)
@@ -62,11 +60,20 @@ lazy val mycelium = crossProject
     )
   )
   .jsSettings(
+    npmDependencies in Compile ++= (
+      "reconnecting-websocket" -> "3.1.0" ::
+      Nil
+    ),
+    npmDependencies in Test ++= (
+      "html5-websocket" -> "2.0.1" ::
+      Nil
+    ),
     libraryDependencies ++= (
       Deps.scalajs.dom.value ::
       Nil
     )
   )
 
-lazy val myceliumJS = mycelium.js
 lazy val myceliumJVM = mycelium.jvm
+lazy val myceliumJS = mycelium.js
+  .enablePlugins(ScalaJSPlugin, ScalaJSBundlerPlugin)

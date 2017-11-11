@@ -28,15 +28,16 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
   type State = String
 
   "client" in {
-    val config = ClientConfig(
-      ClientConfig.Request(timeoutMillis = 1))
+    val config = ClientConfig(requestTimeoutMillis = 1)
+    val akkaConfig = AkkaWebsocketConfig(bufferSize = 5, overflowStrategy = OverflowStrategy.fail)
 
     val handler = new IncidentHandler[Event] {
       def onConnect(reconnect: Boolean): Unit = ???
       def onEvents(events: Seq[Event]): Unit = ???
     }
 
-    val client = WebsocketClient.withPayload[ByteBuffer, Payload, Event, Failure](config, handler)
+    val client = WebsocketClient.withPayload[ByteBuffer, Payload, Event, Failure](
+      AkkaWebsocketConnection(akkaConfig), config, handler)
 
     val res = client.send("foo" :: "bar" :: Nil, 1)
 
@@ -44,11 +45,10 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
   }
 
   "server" in {
-    val config = ServerConfig(
-      ServerConfig.Flow(bufferSize = 5, overflowStrategy = OverflowStrategy.dropNew))
+    val config = ServerConfig(bufferSize = 5, overflowStrategy = OverflowStrategy.fail)
 
     val handler = new RequestHandler[Payload, Event, PublishEvent, Failure, State] {
-      def onClientConnect(client: NotifiableClient[PublishEvent]): Reaction = Reaction(Future.successful("empty"), Future.successful(Seq.empty))
+      def onClientConnect(client: NotifiableClient[PublishEvent]): Reaction = Reaction(Future.successful("empty"), Future.successful(Nil))
       def onClientDisconnect(client: ClientIdentity, state: Future[State]): Unit = {}
       def onRequest(client: ClientIdentity, state: Future[State], path: List[String], payload: Payload): Response =
         Response(Reaction(state, Future.successful(Nil)), Future.successful(Right(payload)))

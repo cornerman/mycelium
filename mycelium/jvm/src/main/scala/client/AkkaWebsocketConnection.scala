@@ -13,17 +13,12 @@ import akka.http.scaladsl.model.ws._
 
 import scala.concurrent.Future
 
-class AkkaWebsocketConnection[PickleType](implicit system: ActorSystem, materializer: ActorMaterializer, builder: AkkaMessageBuilder[PickleType]) extends WebsocketConnection[PickleType] {
+case class AkkaWebsocketConfig(bufferSize: Int, overflowStrategy: OverflowStrategy)
+class AkkaWebsocketConnection[PickleType](config: AkkaWebsocketConfig)(implicit system: ActorSystem, materializer: ActorMaterializer, builder: AkkaMessageBuilder[PickleType]) extends WebsocketConnection[PickleType] {
   import system.dispatcher
 
-  private val (outgoing, queue) = {
-    //TODO configurable
-    val bufferSize = 250
-    val overflowStrategy = OverflowStrategy.fail
-    Source
-      .queue[Message](bufferSize, overflowStrategy)
-      .peekMaterializedValue
-  }
+  private val (outgoing, queue) =
+    Source.queue[Message](config.bufferSize, config.overflowStrategy).peekMaterializedValue
 
   def send(value: PickleType): Unit = queue.foreach { queue =>
     val message = builder.pack(value)
@@ -35,11 +30,17 @@ class AkkaWebsocketConnection[PickleType](implicit system: ActorSystem, material
       Sink.foreach[Message] { message =>
         builder.unpack(message) match {
           case Some(value) => listener.onMessage(value)
-          case None => scribe.warn(s"Ignorning websocket message. Builder does not support message: $message")
+          case None => scribe.warn(s"Ignoring websocket message. Builder does not support message: $message")
         }
       }
 
-    val webSocketFlow = Http().webSocketClientFlow(WebSocketRequest(location))
+    // val bcast = Broadcast[Message]
+
+    //TODO reconnecting:
+    //singleWebSocketRequest(..., Flow[Message].alsoTo(Sink.onComplete(...)).via(yourHandlerFlow))
+    // https://groups.google.com/forum/#!topic/akka-user/cWwxrx5APqI/discussion
+    val webSocketFlow = Http()
+      .webSocketClientFlow(WebSocketRequest(location))
 
     val (upgradeResponse, closed) =
       outgoing
@@ -58,4 +59,8 @@ class AkkaWebsocketConnection[PickleType](implicit system: ActorSystem, material
     connected.foreach(_.foreach(_ => listener.onConnect())) //TODO: do we need to close, if connect failed?
     closed.foreach(_ => listener.onClose())
   }
+}
+
+object AkkaWebsocketConnection {
+  def apply[PickleType : AkkaMessageBuilder](config: AkkaWebsocketConfig)(implicit system: ActorSystem, materializer: ActorMaterializer) = new AkkaWebsocketConnection(config)
 }

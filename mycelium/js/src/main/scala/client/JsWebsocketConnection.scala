@@ -1,13 +1,19 @@
 package mycelium.client
 
 import mycelium.core.JsMessageBuilder
+import mycelium.client.raw._
 import mycelium.util.BufferedFunction
 
 import org.scalajs.dom._
+import scala.scalajs.js
 import scala.scalajs.js.typedarray.ArrayBuffer
 import scala.util.Try
 
-class JsWebsocketConnection[PickleType](implicit builder: JsMessageBuilder[PickleType]) extends WebsocketConnection[PickleType] {
+import org.scalajs.dom._
+
+case class JsWebsocketConfig(maxReconnectionDelay: Int = 10000, minReconnectionDelay: Int = 1500, reconnectionDelayGrowFactor: Double = 1.3, connectionTimeout: Int = 4000, debug: Boolean = false)
+
+class JsWebsocketConnection[PickleType](config: JsWebsocketConfig)(implicit builder: JsMessageBuilder[PickleType]) extends WebsocketConnection[PickleType] {
   private var wsOpt: Option[WebSocket] = None
 
   private def rawSend(ws: WebSocket, value: PickleType): Boolean = {
@@ -29,10 +35,16 @@ class JsWebsocketConnection[PickleType](implicit builder: JsMessageBuilder[Pickl
     sendMessages.flush()
   }
 
-  def run(location: String, listener: WebsocketListener[PickleType]): Unit = {
+  def run(location: String, listener: WebsocketListener[PickleType]): Unit = if (wsOpt.isEmpty) {
     import listener._
 
-    val websocket = new WebSocket(location)
+    val websocket = new ReconnectingWebSocket(location, options = new ReconnectingWebsocketOptions {
+      override val maxReconnectionDelay: js.UndefOr[Int] = config.maxReconnectionDelay
+      override val minReconnectionDelay: js.UndefOr[Int] = config.minReconnectionDelay
+      override val reconnectionDelayGrowFactor: js.UndefOr[Double] = config.reconnectionDelayGrowFactor
+      override val connectionTimeout: js.UndefOr[Int] = config.connectionTimeout
+      override val debug: js.UndefOr[Boolean] = config.debug
+    })
 
     websocket.onerror = { (e: ErrorEvent) =>
       scribe.warn(s"Error in websocket: $e")
@@ -63,4 +75,8 @@ class JsWebsocketConnection[PickleType](implicit builder: JsMessageBuilder[Pickl
       }
     }
   }
+}
+
+object JsWebsocketConnection {
+  def apply[PickleType : JsMessageBuilder](config: JsWebsocketConfig) = new JsWebsocketConnection(config)
 }

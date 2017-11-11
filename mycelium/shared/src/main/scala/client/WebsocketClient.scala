@@ -8,11 +8,9 @@ import scala.concurrent.{ ExecutionContext, Future }
 class WebsocketClient[PickleType, Payload, Event, Failure](
   ws: WebsocketConnection[PickleType],
   handler: IncidentHandler[Event],
-  requestTimeoutMillis: Int)(implicit
+  callRequests: OpenRequests[Either[Failure, Payload]])(implicit
   writer: Writer[ClientMessage[Payload], PickleType],
   reader: Reader[ServerMessage[Payload, Event, Failure], PickleType]) {
-
-  private val callRequests = new OpenRequests[Either[Failure, Payload]](requestTimeoutMillis)
 
   def send(path: List[String], payload: Payload)(implicit ec: ExecutionContext): Future[Either[Failure, Payload]] = {
     val (id, promise) = callRequests.open()
@@ -37,27 +35,28 @@ class WebsocketClient[PickleType, Payload, Event, Failure](
         case Right(Pong()) =>
           // do nothing
         case Left(error) =>
-          scribe.warn(s"Ignorning message. Reader failed: ${error.getMessage}")
+          scribe.warn(s"Ignoring message. Reader failed: ${error.getMessage}")
       }
     }
   })
 }
 
-object WebsocketClient extends NativeWebsocketClient {
-  def factory[PickleType, Payload, Event, Failure](
+object WebsocketClient {
+  def apply[PickleType, Event, Failure](
+    connection: WebsocketConnection[PickleType],
+    config: ClientConfig,
+    handler: IncidentHandler[Event])(implicit
+    writer: Writer[ClientMessage[PickleType], PickleType],
+    reader: Reader[ServerMessage[PickleType, Event, Failure], PickleType]) =
+    withPayload[PickleType, PickleType, Event, Failure](connection, config, handler)
+
+  def withPayload[PickleType, Payload, Event, Failure](
     connection: WebsocketConnection[PickleType],
     config: ClientConfig,
     handler: IncidentHandler[Event])(implicit
     writer: Writer[ClientMessage[Payload], PickleType],
     reader: Reader[ServerMessage[Payload, Event, Failure], PickleType]) = {
-      val wrapper =
-        { conn: WebsocketConnection[PickleType] =>
-          config.ping.fold(conn)(c => WebsocketConnection.withPing(conn)(c.timeoutMillis))
-        } andThen
-        { conn: WebsocketConnection[PickleType] =>
-          config.reconnect.fold(conn)(c => WebsocketConnection.withReconnect(conn)(c.minimumBackoffMillis))
-        }
-
-      new WebsocketClient(wrapper(connection), handler, config.request.timeoutMillis)
-    }
+    val callRequests = new OpenRequests[Either[Failure, Payload]](config.requestTimeoutMillis)
+    new WebsocketClient(connection, handler, callRequests)
+  }
 }
