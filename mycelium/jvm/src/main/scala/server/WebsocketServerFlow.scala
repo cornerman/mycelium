@@ -34,8 +34,8 @@ object WebsocketServerFlow {
       Flow[Message].mapConcat {
         case m: Message =>
           val result = for {
-            value <- builder.unpack(m).toRight(s"Builder does not support message: $m")
-            msg <- reader.read(value).left.map(t => s"Reader failed: ${t.getMessage}")
+            value <- builder.unpack(m).toRight(s"Builder does not support message: $m").right
+            msg <- reader.read(value).left.map(t => s"Reader failed: ${t.getMessage}").right
           } yield msg
 
           result match {

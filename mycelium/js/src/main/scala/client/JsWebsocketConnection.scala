@@ -10,19 +10,18 @@ import scala.util.Try
 class JsWebsocketConnection[PickleType](implicit builder: JsMessageBuilder[PickleType]) extends WebsocketConnection[PickleType] {
   private var wsOpt: Option[WebSocket] = None
 
-  private def rawSend(ws: WebSocket, value: PickleType): Try[Unit] = Try {
+  private def rawSend(ws: WebSocket, value: PickleType): Boolean = {
     val msg = builder.pack(value)
-    (msg: Any) match {
+    val tried = (msg: Any) match {
       case s: String => Try(ws.send(s))
       case a: ArrayBuffer => Try(ws.send(a))
       case b: Blob => Try(ws.send(b))
     }
+    tried.isSuccess
   }
 
   private val sendMessages = BufferedFunction[PickleType] { msg =>
-    wsOpt.fold(false) { ws =>
-      rawSend(ws, msg).fold(_ => false, _ => true)
-    }
+    wsOpt.fold(false)(rawSend(_, msg))
   }
 
   def send(value: PickleType) = {
