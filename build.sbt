@@ -1,8 +1,12 @@
 inThisBuild(Seq(
   organization := "com.github.cornerman",
-  scalaVersion := "2.12.4",
-  crossScalaVersions := Seq("2.11.11", "2.12.4"),
   version      := "0.1.0-SNAPSHOT",
+
+  scalaVersion := "2.12.4",
+  crossScalaVersions := Seq("2.11.11", "2.12.4")
+))
+
+lazy val commonSettings = Seq(
   scalacOptions ++=
     "-encoding" :: "UTF-8" ::
     "-unchecked" ::
@@ -13,33 +17,35 @@ inThisBuild(Seq(
     "-Xcheckinit" ::
     "-Xfuture" ::
     "-Xlint" ::
+    "-Ypartial-unification" ::
     "-Yno-adapted-args" ::
-    "-Ywarn-dead-code" ::
-    "-Ywarn-unused" ::
     "-Ywarn-infer-any" ::
+    "-Ywarn-value-discard" ::
     "-Ywarn-nullary-override" ::
     "-Ywarn-nullary-unit" ::
+    "-Ywarn-unused" ::
     Nil,
+
   scalacOptions ++= {
     CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, 12)) =>
         "-Ywarn-extra-implicit" ::
         Nil
-      case _             =>
+      case _ =>
         Nil
     }
   }
-))
+)
 
-resolvers += Resolver.sonatypeRepo("releases")
-addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.4")
 enablePlugins(ScalaJSPlugin)
 
-lazy val root = (project in file(".")).
-  aggregate(myceliumJS, myceliumJVM)
+lazy val root = (project in file("."))
+  .aggregate(myceliumJS, myceliumJVM)
+  .settings(commonSettings)
 
-lazy val mycelium = crossProject.
-  settings(
+lazy val mycelium = crossProject
+  .settings(commonSettings)
+  .settings(
     name := "mycelium",
     libraryDependencies ++=
       Deps.scribe.value ::
