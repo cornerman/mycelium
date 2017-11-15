@@ -14,7 +14,10 @@ object TimeoutPromise {
 
     val timer = new Timer
     val task = new TimerTask {
-      def run(): Unit = promise tryFailure TimeoutException
+      def run(): Unit = {
+        promise tryFailure TimeoutException
+        ()
+      }
     }
 
     timer.schedule(task, timeoutMillis)
