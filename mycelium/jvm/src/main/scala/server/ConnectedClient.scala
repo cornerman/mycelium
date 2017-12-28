@@ -48,8 +48,9 @@ private[mycelium] class ConnectedClient[Payload, Event, PublishEvent, Failure, S
         context.stop(self)
     }
 
-    val state = onClientConnect(client)
-    withState(Future.successful(state))
+    val initial = onClientConnect(client)
+    initial.events.foreach(sendEvents)
+    withState(initial.state)
   }
 
   def receive = {

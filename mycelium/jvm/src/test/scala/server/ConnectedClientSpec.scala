@@ -54,10 +54,10 @@ class TestRequestHandler extends RequestHandler[ByteBuffer, String, String, Stri
     Reaction(state, Future.successful(downstreamEvents))
   }
 
-  override def onClientConnect(client: NotifiableClient[String]): Option[String] = {
+  override def onClientConnect(client: NotifiableClient[String]): Reaction = {
     client.notify("started")
     clients += client.id -> client
-    None
+    Reaction(Future.successful(None), Future.successful(Seq.empty))
   }
   override def onClientDisconnect(client: ClientIdentity, state: Future[Option[String]]) = {
     clients -= client

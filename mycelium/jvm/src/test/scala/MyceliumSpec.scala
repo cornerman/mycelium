@@ -48,7 +48,7 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
       ServerConfig.Flow(bufferSize = 5, overflowStrategy = OverflowStrategy.dropNew))
 
     val handler = new RequestHandler[Payload, Event, PublishEvent, Failure, State] {
-      def onClientConnect(client: NotifiableClient[PublishEvent]): State = "empty"
+      def onClientConnect(client: NotifiableClient[PublishEvent]): Reaction = Reaction(Future.successful("empty"), Future.successful(Seq.empty))
       def onClientDisconnect(client: ClientIdentity, state: Future[State]): Unit = {}
       def onRequest(client: ClientIdentity, state: Future[State], path: List[String], payload: Payload): Response =
         Response(Reaction(state, Future.successful(Nil)), Future.successful(Right(payload)))
