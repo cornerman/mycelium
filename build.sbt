@@ -55,6 +55,7 @@ lazy val mycelium = crossProject
     libraryDependencies ++= (
       Deps.akka.http.value ::
       Deps.akka.actor.value ::
+      Deps.akka.stream.value ::
       Deps.akka.testkit.value % Test ::
       Nil
     )
