@@ -18,34 +18,34 @@ class TestRequestHandler extends RequestHandler[ByteBuffer, String, String, Stri
   val events = mutable.ArrayBuffer.empty[String]
 
   override def onRequest(client: ClientIdentity, state: Future[Option[String]], path: List[String], args: ByteBuffer) = {
-    def response[S : Pickler](reaction: Reaction, ts: S): Response = {
+    def response[S : Pickler](ts: S, reaction: Reaction): Response = {
       val r = Future.successful(Right(Pickle.intoBytes[S](ts)))
-      Response(reaction, r)
+      Response(r, reaction)
     }
 
-    def error(reaction: Reaction, ts: String): Response = {
+    def error(ts: String, reaction: Reaction): Response = {
       val r = Future.successful(Left(ts))
-      Response(reaction, r)
+      Response(r, reaction)
     }
 
     val result = Some(path) collect {
       case "api" :: Nil =>
         val str = Unpickle[String].fromBytes(args)
-        response(Reaction(state, Future.successful(Seq.empty)), str.reverse)
+        response(str.reverse, Reaction(state, Future.successful(Seq.empty)))
       case "event" :: Nil =>
         val events = Future.successful(Seq("event"))
-        response(Reaction(state, events), true)
+        response(true, Reaction(state, events))
       case "state" :: Nil =>
         val pickledState = state.map(s => Right(Pickle.intoBytes(s)))
-        Response(Reaction(state, Future.successful(Seq.empty)), pickledState)
+        Response(pickledState, Reaction(state, Future.successful(Seq.empty)))
       case "state" :: "change" :: Nil =>
         val otherUser = Future.successful(Option("anon"))
-        response(Reaction(otherUser, Future.successful(Seq.empty)), true)
+        response(true, Reaction(otherUser, Future.successful(Seq.empty)))
       case "broken" :: Nil =>
-        error(Reaction(state, Future.successful(Seq.empty)), "an error")
+        error("an error", Reaction(state, Future.successful(Seq.empty)))
     }
 
-    result getOrElse Response(Reaction(state, Future.successful(Seq.empty)), Future.successful(Left("path not found")))
+    result getOrElse Response(Future.successful(Left("path not found")), Reaction(state, Future.successful(Seq.empty)))
   }
 
   override def onEvent(client: ClientIdentity, state: Future[Option[String]], event: String) = {

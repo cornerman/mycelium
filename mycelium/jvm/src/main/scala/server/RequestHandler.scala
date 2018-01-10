@@ -3,8 +3,10 @@ package mycelium.server
 import scala.concurrent.Future
 
 trait RequestHandler[Payload, Event, PublishEvent, Failure, State] {
-  case class Reaction(state: Future[State], events: Future[Seq[Event]])
-  case class Response(reaction: Reaction, result: Future[Either[Failure, Payload]])
+  sealed trait ReactiveResponse
+  case object NoReaction extends ReactiveResponse
+  case class Reaction(state: Future[State], events: Future[Seq[Event]] = Future.successful(Seq.empty)) extends ReactiveResponse
+  case class Response(result: Future[Either[Failure, Payload]], reaction: ReactiveResponse = NoReaction)
 
   // called when a client connects to the websocket. this allows for
   // managing/bookkeeping of connected clients and returning the initial state.
@@ -22,5 +24,15 @@ trait RequestHandler[Payload, Event, PublishEvent, Failure, State] {
 
   // you can send events to the clients by calling notify(event) on the NotifiableClient.
   // here you can let each client react when receiving such an event.
-  def onEvent(client: ClientIdentity, state: Future[State], event: PublishEvent): Reaction
+  def onEvent(client: ClientIdentity, state: Future[State], event: PublishEvent): ReactiveResponse
+}
+
+trait SimpleRequestHandler[Payload, Event, Failure, State] extends RequestHandler[Payload, Event, Nothing, Failure, State] {
+  def onClientConnect(): Reaction
+  def onRequest(state: Future[State], path: List[String], payload: Payload): Response
+
+  final def onClientConnect(client: NotifiableClient[Nothing]): Reaction = onClientConnect()
+  final def onClientDisconnect(client: ClientIdentity, state: Future[State]): Unit = {}
+  final def onRequest(client: ClientIdentity, state: Future[State], path: List[String], payload: Payload): Response = onRequest(state, path, payload)
+  final def onEvent(client: ClientIdentity, state: Future[State], event: Nothing): ReactiveResponse = NoReaction
 }

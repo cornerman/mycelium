@@ -23,25 +23,28 @@ private[mycelium] class ConnectedClient[Payload, Event, PublishEvent, Failure, S
   def connected(outgoing: ActorRef) = {
     val client = new NotifiableClient[PublishEvent](self)
     def sendEvents(events: Seq[Event]) = if (events.nonEmpty) outgoing ! Notification(events.toList)
+    def react(reaction: ReactiveResponse) = reaction match {
+      case Reaction(state, events) =>
+        events.foreach(sendEvents)
+        context.become(withState(state))
+      case NoReaction =>
+    }
 
     def withState(state: Future[State]): Receive = {
       case Ping() => outgoing ! Pong()
 
       case CallRequest(seqId, path, args: Payload@unchecked) =>
         val response = onRequest(client.id, state, path, args)
-        import response._
 
-        result
+        response.result
           .map(r => CallResponse(seqId, r))
           .pipeTo(outgoing)
 
-        reaction.events.foreach(sendEvents)
-        context.become(withState(reaction.state))
+        react(response.reaction)
 
       case client.Notify(event) =>
         val reaction = onEvent(client.id, state, event)
-        reaction.events.foreach(sendEvents)
-        context.become(withState(reaction.state))
+        react(reaction)
 
       case Stop =>
         onClientDisconnect(client.id, state)

@@ -51,7 +51,7 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
       def onClientConnect(client: NotifiableClient[PublishEvent]): Reaction = Reaction(Future.successful("empty"), Future.successful(Nil))
       def onClientDisconnect(client: ClientIdentity, state: Future[State]): Unit = {}
       def onRequest(client: ClientIdentity, state: Future[State], path: List[String], payload: Payload): Response =
-        Response(Reaction(state, Future.successful(Nil)), Future.successful(Right(payload)))
+        Response(Future.successful(Right(payload)), Reaction(state, Future.successful(Nil)))
       def onEvent(client: ClientIdentity, state: Future[State], event: PublishEvent): Reaction = ???
     }
 
