@@ -72,7 +72,7 @@ class ConnectedClientSpec extends TestKit(ActorSystem("ConnectedClientSpec")) wi
   def connectActor(actor: ActorRef, shouldConnect: Boolean = true) = {
     actor ! ConnectedClient.Connect(self)
     if (shouldConnect) expectMsg(Notification(List("started-ok")))
-    else expectNoMsg
+    else expectNoMessage
   }
   def connectedActor(handler: TestRequestHandler = requestHandler): ActorRef = {
     val actor = newActor(handler)
@@ -84,25 +84,26 @@ class ConnectedClientSpec extends TestKit(ActorSystem("ConnectedClientSpec")) wi
   def connectedActor[T](f: ActorRef => T): T = f(connectedActor())
 
   val noArg = ByteBuffer.wrap(Array.empty)
+  def expectNoMessage: Unit = expectNoMessage(1 seconds)
 
   "unconnected" - {
     val actor = newActor()
 
     "no pong" in {
       actor ! Ping()
-      expectNoMsg
+      expectNoMessage
     }
 
     "no call request" in {
       actor ! CallRequest(2, List("invalid", "path"), noArg)
-      expectNoMsg
+      expectNoMessage
     }
 
     "stop" in {
       actor ! ConnectedClient.Stop
       connectActor(actor, shouldConnect = false)
       actor ! Ping()
-      expectNoMsg
+      expectNoMessage
     }
   }
 
@@ -162,8 +163,7 @@ class ConnectedClientSpec extends TestKit(ActorSystem("ConnectedClientSpec")) wi
     "stops actor" in connectedActor { actor =>
       actor ! ConnectedClient.Stop
       actor ! Ping()
-      expectNoMsg
-
+      expectNoMessage
     }
   }
 }
