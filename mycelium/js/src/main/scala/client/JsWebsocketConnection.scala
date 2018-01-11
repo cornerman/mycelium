@@ -8,12 +8,11 @@ import org.scalajs.dom._
 import scala.scalajs.js
 import scala.scalajs.js.typedarray.ArrayBuffer
 import scala.util.Try
-
-import org.scalajs.dom._
+import scala.concurrent.{ExecutionContext, Future}
 
 case class JsWebsocketConfig(maxReconnectionDelay: Int = 10000, minReconnectionDelay: Int = 1500, reconnectionDelayGrowFactor: Double = 1.3, connectionTimeout: Int = 4000, debug: Boolean = false)
 
-class JsWebsocketConnection[PickleType](config: JsWebsocketConfig)(implicit builder: JsMessageBuilder[PickleType]) extends WebsocketConnection[PickleType] {
+class JsWebsocketConnection[PickleType](config: JsWebsocketConfig)(implicit builder: JsMessageBuilder[PickleType], ec: ExecutionContext) extends WebsocketConnection[PickleType] {
   private var wsOpt: Option[WebSocket] = None
 
   private def rawSend(ws: WebSocket, value: PickleType): Boolean = {
@@ -66,10 +65,10 @@ class JsWebsocketConnection[PickleType](config: JsWebsocketConfig)(implicit buil
         case s: String => builder.unpack(s)
         case a: ArrayBuffer => builder.unpack(a)
         case b: Blob => builder.unpack(b)
-        case _ => None
+        case _ => Future.successful(None)
       }
 
-      value match {
+      value.foreach {
         case Some(value) => onMessage(value)
         case None => scribe.warn(s"Ignoring websocket message. Builder does not support message: ${e.data}")
       }
@@ -78,5 +77,5 @@ class JsWebsocketConnection[PickleType](config: JsWebsocketConfig)(implicit buil
 }
 
 object JsWebsocketConnection {
-  def apply[PickleType : JsMessageBuilder](config: JsWebsocketConfig) = new JsWebsocketConnection(config)
+  def apply[PickleType : JsMessageBuilder](config: JsWebsocketConfig)(implicit ec: ExecutionContext) = new JsWebsocketConnection(config)
 }
