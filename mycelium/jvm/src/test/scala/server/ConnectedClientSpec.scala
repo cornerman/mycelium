@@ -14,10 +14,10 @@ import scala.concurrent.duration._
 import scala.collection.mutable
 
 class TestRequestHandler extends RequestHandler[ByteBuffer, String, String, String, Option[String]] {
-  val clients = mutable.HashMap.empty[ClientIdentity, NotifiableClient[String]]
+  val clients = mutable.HashSet.empty[NotifiableClient[String]]
   val events = mutable.ArrayBuffer.empty[String]
 
-  override def onRequest(client: ClientIdentity, state: Future[Option[String]], path: List[String], args: ByteBuffer) = {
+  override def onRequest(client: NotifiableClient[String], state: Future[Option[String]], path: List[String], args: ByteBuffer) = {
     def response[S : Pickler](ts: S, reaction: Reaction): Response = {
       val r = Future.successful(Right(Pickle.intoBytes[S](ts)))
       Response(r, reaction)
@@ -48,7 +48,7 @@ class TestRequestHandler extends RequestHandler[ByteBuffer, String, String, Stri
     result getOrElse Response(Future.successful(Left("path not found")), Reaction(state, Future.successful(Seq.empty)))
   }
 
-  override def onEvent(client: ClientIdentity, state: Future[Option[String]], event: String) = {
+  override def onEvent(client: NotifiableClient[String], state: Future[Option[String]], event: String) = {
     events += event
     val downstreamEvents = Seq(s"${event}-ok")
     Reaction(state, Future.successful(downstreamEvents))
@@ -56,10 +56,10 @@ class TestRequestHandler extends RequestHandler[ByteBuffer, String, String, Stri
 
   override def onClientConnect(client: NotifiableClient[String]): Reaction = {
     client.notify("started")
-    clients += client.id -> client
+    clients += client
     Reaction(Future.successful(None), Future.successful(Seq.empty))
   }
-  override def onClientDisconnect(client: ClientIdentity, state: Future[Option[String]]) = {
+  override def onClientDisconnect(client: NotifiableClient[String], state: Future[Option[String]]) = {
     clients -= client
     ()
   }

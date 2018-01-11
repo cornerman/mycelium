@@ -15,16 +15,16 @@ trait RequestHandler[Payload, Event, PublishEvent, Failure, State] {
 
   // called when a client disconnects. this can be due to a timeout on the
   // websocket connection or the client closed the connection.
-  def onClientDisconnect(client: ClientIdentity, state: Future[State]): Unit
+  def onClientDisconnect(client: NotifiableClient[PublishEvent], state: Future[State]): Unit
 
   // a request is a (path: Seq[String], args: Payload), which
   // needs to be mapped to a result.  if the request cannot be handled, you can
   // return an error. this is the integration point for e.g. sloth or autowire
-  def onRequest(client: ClientIdentity, state: Future[State], path: List[String], payload: Payload): Response
+  def onRequest(client: NotifiableClient[PublishEvent], state: Future[State], path: List[String], payload: Payload): Response
 
   // you can send events to the clients by calling notify(event) on the NotifiableClient.
   // here you can let each client react when receiving such an event.
-  def onEvent(client: ClientIdentity, state: Future[State], event: PublishEvent): ReactiveResponse
+  def onEvent(client: NotifiableClient[PublishEvent], state: Future[State], event: PublishEvent): ReactiveResponse
 }
 
 trait SimpleRequestHandler[Payload, Event, Failure, State] extends RequestHandler[Payload, Event, Nothing, Failure, State] {
@@ -32,7 +32,7 @@ trait SimpleRequestHandler[Payload, Event, Failure, State] extends RequestHandle
   def onRequest(state: Future[State], path: List[String], payload: Payload): Response
 
   final def onClientConnect(client: NotifiableClient[Nothing]): Reaction = onClientConnect()
-  final def onClientDisconnect(client: ClientIdentity, state: Future[State]): Unit = {}
-  final def onRequest(client: ClientIdentity, state: Future[State], path: List[String], payload: Payload): Response = onRequest(state, path, payload)
-  final def onEvent(client: ClientIdentity, state: Future[State], event: Nothing): ReactiveResponse = NoReaction
+  final def onClientDisconnect(client: NotifiableClient[Nothing], state: Future[State]): Unit = {}
+  final def onRequest(client: NotifiableClient[Nothing], state: Future[State], path: List[String], payload: Payload): Response = onRequest(state, path, payload)
+  final def onEvent(client: NotifiableClient[Nothing], state: Future[State], event: Nothing): ReactiveResponse = NoReaction
 }

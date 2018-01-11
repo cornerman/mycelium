@@ -6,10 +6,7 @@ import mycelium.core.message._
 
 import scala.concurrent.Future
 
-case class ClientIdentity(id: Long) extends AnyVal
-case class NotifiableClient[PublishEvent](actor: ActorRef) {
-  val id = ClientIdentity(actor.hashCode)
-
+class NotifiableClient[PublishEvent](actor: ActorRef) {
   private[mycelium] case class Notify(event: PublishEvent)
   def notify(event: PublishEvent): Unit = actor ! Notify(event)
 }
@@ -34,7 +31,7 @@ private[mycelium] class ConnectedClient[Payload, Event, PublishEvent, Failure, S
       case Ping() => outgoing ! Pong()
 
       case CallRequest(seqId, path, args: Payload@unchecked) =>
-        val response = onRequest(client.id, state, path, args)
+        val response = onRequest(client, state, path, args)
 
         response.result
           .map(r => CallResponse(seqId, r))
@@ -43,11 +40,11 @@ private[mycelium] class ConnectedClient[Payload, Event, PublishEvent, Failure, S
         react(response.reaction)
 
       case client.Notify(event) =>
-        val reaction = onEvent(client.id, state, event)
+        val reaction = onEvent(client, state, event)
         react(reaction)
 
       case Stop =>
-        onClientDisconnect(client.id, state)
+        onClientDisconnect(client, state)
         context.stop(self)
     }
 
