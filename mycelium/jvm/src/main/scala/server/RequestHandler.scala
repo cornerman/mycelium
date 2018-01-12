@@ -3,15 +3,15 @@ package mycelium.server
 import scala.concurrent.Future
 
 trait RequestHandler[Payload, Event, PublishEvent, Failure, State] {
-  sealed trait ReactiveResponse
-  case object NoReaction extends ReactiveResponse
-  case class Reaction(state: Future[State], events: Future[Seq[Event]] = Future.successful(Seq.empty)) extends ReactiveResponse
-  case class Response(result: Future[Either[Failure, Payload]], reaction: ReactiveResponse = NoReaction)
+
+  case class InitialState(state: Future[State], events: Future[Seq[Event]] = Future.successful(Seq.empty))
+  case class Response(result: Future[Either[Failure, Payload]], state: Option[Future[State]] = None, events: Future[Seq[Event]] = Future.successful(Seq.empty))
+  case class Reaction(state: Option[Future[State]] = None, events: Future[Seq[Event]] = Future.successful(Seq.empty))
 
   // called when a client connects to the websocket. this allows for
-  // managing/bookkeeping of connected clients and returning the initial state.
+  // managing/bookkeeping of connected clients and returning the initial.
   // the NotifiableClient can be used to send events to downstream.
-  def onClientConnect(client: NotifiableClient[PublishEvent]): Reaction
+  def onClientConnect(client: NotifiableClient[PublishEvent]): InitialState
 
   // called when a client disconnects. this can be due to a timeout on the
   // websocket connection or the client closed the connection.
@@ -24,15 +24,15 @@ trait RequestHandler[Payload, Event, PublishEvent, Failure, State] {
 
   // you can send events to the clients by calling notify(event) on the NotifiableClient.
   // here you can let each client react when receiving such an event.
-  def onEvent(client: NotifiableClient[PublishEvent], state: Future[State], event: PublishEvent): ReactiveResponse
+  def onEvent(client: NotifiableClient[PublishEvent], state: Future[State], event: PublishEvent): Reaction
 }
 
 trait SimpleRequestHandler[Payload, Event, Failure, State] extends RequestHandler[Payload, Event, Nothing, Failure, State] {
-  def onClientConnect(): Reaction
+  def onClientConnect(): InitialState
   def onRequest(state: Future[State], path: List[String], payload: Payload): Response
 
-  final def onClientConnect(client: NotifiableClient[Nothing]): Reaction = onClientConnect()
+  final def onClientConnect(client: NotifiableClient[Nothing]): InitialState = onClientConnect()
   final def onClientDisconnect(client: NotifiableClient[Nothing], state: Future[State]): Unit = {}
   final def onRequest(client: NotifiableClient[Nothing], state: Future[State], path: List[String], payload: Payload): Response = onRequest(state, path, payload)
-  final def onEvent(client: NotifiableClient[Nothing], state: Future[State], event: Nothing): ReactiveResponse = NoReaction
+  final def onEvent(client: NotifiableClient[Nothing], state: Future[State], event: Nothing): Reaction = Reaction()
 }
