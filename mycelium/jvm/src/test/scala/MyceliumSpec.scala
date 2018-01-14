@@ -23,7 +23,6 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
 
   type Payload = Int
   type Event = String
-  type PublishEvent = String
   type Failure = Int
   type State = String
 
@@ -47,15 +46,11 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
   "server" in {
     val config = ServerConfig(bufferSize = 5, overflowStrategy = OverflowStrategy.fail)
 
-    val handler = new RequestHandler[Payload, Event, PublishEvent, Failure, State] {
-      def onClientConnect(client: NotifiableClient[PublishEvent]): InitialState = InitialState(Future.successful("empty"))
-      def onClientDisconnect(client: NotifiableClient[PublishEvent], state: Future[State]): Unit = {}
-      def onRequest(client: NotifiableClient[PublishEvent], state: Future[State], path: List[String], payload: Payload): Response =
-        Response(Future.successful(Right(payload)))
-      def onEvent(client: NotifiableClient[PublishEvent], state: Future[State], event: PublishEvent): Reaction = Reaction()
+    val handler = new SimpleStatelessRequestHandler[Payload, Event, Failure] {
+      def onRequest(path: List[String], payload: Payload) = Response(Future.successful(Right(payload)))
     }
 
-    val flow = WebsocketServerFlow.withPayload[ByteBuffer, Payload, Event, PublishEvent, Failure, State](config, handler)
+    val flow = WebsocketServerFlow.withPayload(config, handler)
 
     val payloadValue = 1
     val builder = implicitly[AkkaMessageBuilder[ByteBuffer]]

@@ -19,10 +19,10 @@ private[mycelium] class ConnectedClient[Payload, Event, PublishEvent, Failure, S
 
   def connected(outgoing: ActorRef) = {
     val client = new NotifiableClient[PublishEvent](self)
-    def sendEvents(events: Seq[Event]) = if (events.nonEmpty) outgoing ! Notification(events.toList)
-    def react(events: Future[Seq[Event]], state: Option[Future[State]]) = {
-      events.foreach(sendEvents)
-      state.foreach(state => context.become(withState(state)))
+    def sendEvents(events: Seq[Event]): Unit = if (events.nonEmpty) outgoing ! Notification(events.toList)
+    def react(reaction: RequestHandler.Reaction[Event, State]): Receive = {
+      reaction.events.foreach(sendEvents)
+      withState(reaction.state)
     }
 
     def withState(state: Future[State]): Receive = {
@@ -30,25 +30,21 @@ private[mycelium] class ConnectedClient[Payload, Event, PublishEvent, Failure, S
 
       case CallRequest(seqId, path, args: Payload@unchecked) =>
         val response = onRequest(client, state, path, args)
-
-        response.result
-          .map(r => CallResponse(seqId, r))
-          .pipeTo(outgoing)
-
-        react(response.events, response.state)
+        response.result.map(r => CallResponse(seqId, r)).pipeTo(outgoing)
+        context.become(react(response.reaction))
 
       case client.Notify(event) =>
         val reaction = onEvent(client, state, event)
-        react(reaction.events, reaction.state)
+        context.become(react(reaction))
 
       case Stop =>
         onClientDisconnect(client, state)
         context.stop(self)
     }
 
-    val initial = onClientConnect(client)
-    initial.events.foreach(sendEvents)
-    withState(initial.state)
+    val initial = initialReaction
+    onClientConnect(client, initial.state)
+    react(initial)
   }
 
   def receive = {

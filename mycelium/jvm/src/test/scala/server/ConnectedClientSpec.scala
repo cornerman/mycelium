@@ -13,9 +13,11 @@ import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.collection.mutable
 
-class TestRequestHandler extends RequestHandler[ByteBuffer, String, String, String, Option[String]] {
+class TestRequestHandler extends FullRequestHandler[ByteBuffer, String, String, String, Option[String]] {
   val clients = mutable.HashSet.empty[NotifiableClient[String]]
   val events = mutable.ArrayBuffer.empty[String]
+
+  override val initialReaction = Reaction(Future.successful(None))
 
   override def onRequest(client: NotifiableClient[String], state: Future[Option[String]], path: List[String], args: ByteBuffer) = {
     def read[S : Pickler](ts: ByteBuffer) = Unpickle[S].fromBytes(ts)
@@ -27,34 +29,34 @@ class TestRequestHandler extends RequestHandler[ByteBuffer, String, String, Stri
     val result = Some(path) collect {
       case "api" :: Nil =>
         val str = read[String](args)
-        Response(value(str.reverse))
+        Response(value(str.reverse), Reaction(state))
       case "event" :: Nil =>
         val events = Future.successful(Seq("event"))
-        Response(value(true), events = events)
+        Response(value(true), Reaction(state, events))
       case "state" :: Nil =>
-        Response(valueFut(state))
+        Response(valueFut(state), Reaction(state))
       case "state" :: "change" :: Nil =>
         val otherUser = Future.successful(Option("anon"))
-        Response(value(true), state = Some(otherUser))
+        Response(value(true), Reaction(otherUser))
       case "broken" :: Nil =>
-        Response(error("an error"))
+        Response(error("an error"), Reaction(state))
     }
 
-    result getOrElse Response(error("path not found"))
+    result getOrElse Response(error("path not found"), Reaction(state))
   }
 
   override def onEvent(client: NotifiableClient[String], state: Future[Option[String]], event: String) = {
     events += event
     val downstreamEvents = Seq(s"${event}-ok")
-    Reaction(events = Future.successful(downstreamEvents))
+    Reaction(state, Future.successful(downstreamEvents))
   }
 
-  override def onClientConnect(client: NotifiableClient[String]): InitialState = {
+  override def onClientConnect(client: NotifiableClient[String], state: Future[Option[String]]): Unit = {
     client.notify("started")
     clients += client
-    InitialState(Future.successful(None))
+    ()
   }
-  override def onClientDisconnect(client: NotifiableClient[String], state: Future[Option[String]]) = {
+  override def onClientDisconnect(client: NotifiableClient[String], state: Future[Option[String]]): Unit = {
     clients -= client
     ()
   }
