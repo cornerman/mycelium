@@ -38,7 +38,7 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
     }
 
     val client = WebsocketClient.withPayload[ByteBuffer, Payload, Event, Failure](
-      AkkaWebsocketConnection(akkaConfig), config, handler)
+      AkkaWebsocketConnection(akkaConfig), config, handler).run("invalid")
 
     val res = client.send("foo" :: "bar" :: Nil, 1)
 

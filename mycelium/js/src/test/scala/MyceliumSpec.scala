@@ -27,11 +27,11 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
     }
 
     val client = WebsocketClient.withPayload[ByteBuffer, Payload, Event, Failure](
-      JsWebsocketConnection[ByteBuffer](jsConfig), config, handler)
+      JsWebsocketConnection[ByteBuffer](jsConfig), config, handler).run("ws://localhost")
 
+    val client = clientRunner.run("ws://hans")
     val res = client.send("foo" :: "bar" :: Nil, "harals")
 
-    // client.run("ws://hans")
 
     res.failed.map(_ mustEqual TimeoutException)
   }
