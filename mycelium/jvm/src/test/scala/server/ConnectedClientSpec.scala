@@ -74,7 +74,7 @@ class ConnectedClientSpec extends TestKit(ActorSystem("ConnectedClientSpec")) wi
   def connectActor(actor: ActorRef, shouldConnect: Boolean = true) = {
     actor ! ConnectedClient.Connect(self)
     if (shouldConnect) expectMsg(Notification(List("started-ok")))
-    else expectNoMessage
+    else expectNoMessage()
   }
   def connectedActor(handler: TestRequestHandler = requestHandler): ActorRef = {
     val actor = newActor(handler)
@@ -90,26 +90,26 @@ class ConnectedClientSpec extends TestKit(ActorSystem("ConnectedClientSpec")) wi
   }
 
   val noArg = ByteBuffer.wrap(Array.empty)
-  def expectNoMessage: Unit = expectNoMessage(1 seconds)
+  def expectNoMessage(): Unit = expectNoMessage(1 seconds)
 
   "unconnected" - {
     val actor = newActor()
 
     "no pong" in {
       actor ! Ping()
-      expectNoMessage
+      expectNoMessage()
     }
 
     "no call request" in {
       actor ! CallRequest(2, List("invalid", "path"), noArg)
-      expectNoMessage
+      expectNoMessage()
     }
 
     "stop" in {
       actor ! ConnectedClient.Stop
       connectActor(actor, shouldConnect = false)
       actor ! Ping()
-      expectNoMessage
+      expectNoMessage()
     }
   }
 
@@ -164,8 +164,6 @@ class ConnectedClientSpec extends TestKit(ActorSystem("ConnectedClientSpec")) wi
 
       val pickledResponse1 = Pickle.intoBytes[Option[String]](None)
       val pickledResponse2 = Pickle.intoBytes[Boolean](true)
-      val pickledResponse3 = Pickle.intoBytes[Boolean](true)
-      val pickledResponse4 = Pickle.intoBytes[Option[String]](Option("anon"))
       expectMsgAllOf(
         1 seconds,
         CallResponse(1, Right(pickledResponse1)),
@@ -191,7 +189,7 @@ class ConnectedClientSpec extends TestKit(ActorSystem("ConnectedClientSpec")) wi
       handler.clients.size mustEqual 1
       actor ! ConnectedClient.Stop
       actor ! Ping()
-      expectNoMessage
+      expectNoMessage()
       handler.clients.size mustEqual 0
     }
   }
