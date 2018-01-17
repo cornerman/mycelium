@@ -35,7 +35,7 @@ class WebsocketClient[PickleType, Payload, Event, Failure](
         case Right(Pong()) =>
           // do nothing
         case Left(error) =>
-          scribe.warn(s"Ignoring message. Reader failed: ${error.getMessage}")
+          scribe.warn(s"Ignoring message. Reader failed: $error")
       }
     }
   })
