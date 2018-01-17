@@ -39,6 +39,10 @@ lazy val commonSettings = Seq(
 lazy val root = (project in file("."))
   .aggregate(myceliumJS, myceliumJVM)
   .settings(commonSettings)
+  .settings(
+    publish := {},
+    publishLocal := {},
+  )
 
 lazy val mycelium = crossProject
   .settings(commonSettings)
