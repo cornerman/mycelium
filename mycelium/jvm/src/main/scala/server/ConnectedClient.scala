@@ -20,14 +20,13 @@ private[mycelium] class ConnectedClient[Payload, Event, PublishEvent, Failure, S
   def connected(outgoing: ActorRef) = {
     val client = new NotifiableClient[PublishEvent](self)
     def sendEvents(events: Seq[Event]): Unit = if (events.nonEmpty) outgoing ! Notification(events.toList)
-    def stopActor(state: Future[State]): Unit = {
-      onClientDisconnect(client, state)
+    def stopActor(state: Future[State], reason: DisconnectReason): Unit = {
+      onClientDisconnect(client, state, reason)
       context.stop(self)
     }
-    def react(reaction: RequestHandler.Reaction[Event, State]): Receive = {
+    def react(reaction: HandlerReaction[Event, State]): Receive = {
       reaction.state.failed.foreach { t =>
-        scribe.error("Returned state future failed, will disconnect: $t")
-        stopActor(reaction.state)
+        stopActor(reaction.state, DisconnectReason.StateFailed(t))
       }
 
       reaction.events.foreach(sendEvents)
@@ -46,7 +45,7 @@ private[mycelium] class ConnectedClient[Payload, Event, PublishEvent, Failure, S
         val reaction = onEvent(client, state, event)
         context.become(react(reaction))
 
-      case Stop => stopActor(state)
+      case Stop => stopActor(state, DisconnectReason.Stopped)
     }
 
     val initial = initialReaction

@@ -61,7 +61,7 @@ class TestRequestHandler extends FullRequestHandler[ByteBuffer, String, String, 
     clients += client
     ()
   }
-  override def onClientDisconnect(client: NotifiableClient[String], state: Future[Option[String]]): Unit = {
+  override def onClientDisconnect(client: NotifiableClient[String], state: Future[Option[String]], reason: DisconnectReason): Unit = {
     clients -= client
     ()
   }
