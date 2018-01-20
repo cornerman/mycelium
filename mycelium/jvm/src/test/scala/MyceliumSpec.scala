@@ -50,18 +50,19 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
       def onRequest(path: List[String], payload: Payload) = Response(Future.successful(Right(payload)))
     }
 
-    val flow = WebsocketServerFlow.withPayload(config, handler)
+    val server = WebsocketServer.withPayload(config, handler)
+    val flow = server.flow()
 
     val payloadValue = 1
     val builder = implicitly[AkkaMessageBuilder[ByteBuffer]]
+    val writer = implicitly[Writer[ClientMessage[Payload], ByteBuffer]]
+    val reader = implicitly[Reader[ServerMessage[Payload, Event, Failure], ByteBuffer]]
     val request = CallRequest(1, "foo" :: "bar" :: Nil, payloadValue)
-    val msg = builder.pack(Pickle.intoBytes[ClientMessage[Payload]](request))
+    val msg = builder.pack(writer.write(request))
 
     val (_, received) = flow.runWith(Source(msg :: Nil), Sink.head)
     val response = received.map { msg =>
-      builder.unpack(msg).map { buf =>
-        Unpickle[ServerMessage[Payload, Event, Failure]].fromBytes(buf)
-      }
+      builder.unpack(msg).map(s => reader.read(s).right.get)
     }
 
     val expected = CallResponse(1, Right(payloadValue))
