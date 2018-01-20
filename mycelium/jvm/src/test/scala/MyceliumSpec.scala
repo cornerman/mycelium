@@ -47,7 +47,7 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
     val config = ServerConfig(bufferSize = 5, overflowStrategy = OverflowStrategy.fail)
 
     val handler = new SimpleStatelessRequestHandler[Payload, Event, Failure] {
-      def onRequest(path: List[String], payload: Payload) = Response(Future.successful(Right(payload)))
+      def onRequest(path: List[String], payload: Payload) = Response(Future.successful(ReturnValue(Right(payload))))
     }
 
     val server = WebsocketServer.withPayload(config, handler)

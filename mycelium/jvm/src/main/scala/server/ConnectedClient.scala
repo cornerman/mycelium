@@ -24,33 +24,34 @@ private[mycelium] class ConnectedClient[Payload, Event, PublishEvent, Failure, S
       onClientDisconnect(client, state, reason)
       context.stop(self)
     }
-    def react(reaction: HandlerReaction[Event, State]): Receive = {
-      reaction.state.failed.foreach { t =>
-        stopActor(reaction.state, DisconnectReason.StateFailed(t))
+    def safeWithState(state: Future[State]): Receive = {
+      state.failed.foreach { t =>
+        stopActor(state, DisconnectReason.StateFailed(t))
       }
-
-      reaction.events.foreach(sendEvents)
-      withState(reaction.state)
+      withState(state)
     }
-
     def withState(state: Future[State]): Receive = {
       case Ping() => outgoing ! Pong()
 
       case CallRequest(seqId, path, args: Payload@unchecked) =>
         val response = onRequest(client, state, path, args)
-        response.result.map(r => CallResponse(seqId, r)).pipeTo(outgoing)
-        context.become(react(response.reaction))
+        response.value.foreach { value =>
+          outgoing ! CallResponse(seqId, value.result)
+          sendEvents(value.events)
+        }
+        context.become(safeWithState(response.state))
 
       case client.Notify(event) =>
         val reaction = onEvent(client, state, event)
-        context.become(react(reaction))
+        reaction.events.foreach(sendEvents)
+        context.become(safeWithState(reaction.state))
 
       case Stop => stopActor(state, DisconnectReason.Stopped)
     }
 
-    val initial = initialReaction
-    onClientConnect(client, initial.state)
-    react(initial)
+    val firstState = initialState
+    onClientConnect(client, firstState)
+    safeWithState(firstState)
   }
 
   def receive = {

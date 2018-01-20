@@ -17,37 +17,36 @@ class TestRequestHandler extends FullRequestHandler[ByteBuffer, String, String, 
   val clients = mutable.HashSet.empty[NotifiableClient[String]]
   val events = mutable.ArrayBuffer.empty[String]
 
-  override val initialReaction = Reaction(Future.successful(None))
+  override val initialState = Future.successful(None)
 
   override def onRequest(client: NotifiableClient[String], state: Future[Option[String]], path: List[String], args: ByteBuffer) = {
     def read[S : Pickler](ts: ByteBuffer) = Unpickle[S].fromBytes(ts)
     def write[S : Pickler](ts: S) = Right(Pickle.intoBytes[S](ts))
-    def value[S : Pickler](ts: S) = Future.successful(write(ts))
-    def valueFut[S : Pickler](ts: Future[S]) = ts.map(ts => write(ts))
-    def error(ts: String) = Future.successful(Left(ts))
+    def value[S : Pickler](ts: S, events: Seq[String] = Seq.empty) = Future.successful(ReturnValue(write(ts), events))
+    def valueFut[S : Pickler](ts: Future[S], events: Seq[String] = Seq.empty) = ts.map(ts => ReturnValue(write(ts), events))
+    def error(ts: String, events: Seq[String] = Seq.empty) = Future.successful(ReturnValue(Left(ts), events))
 
-    val result = Some(path) collect {
+    path match {
       case "true" :: Nil =>
-        Response(value(true), Reaction(state))
+        Response(state, value(true))
       case "api" :: Nil =>
         val str = read[String](args)
-        Response(value(str.reverse), Reaction(state))
+        Response(state, value(str.reverse))
       case "event" :: Nil =>
-        val events = Future.successful(Seq("event"))
-        Response(value(true), Reaction(state, events))
+        val events = Seq("event")
+        Response(state, value(true, events))
       case "state" :: Nil =>
-        Response(valueFut(state), Reaction(state))
+        Response(state, valueFut(state))
       case "state" :: "change" :: Nil =>
         val otherUser = Future.successful(Option("anon"))
-        Response(value(true), Reaction(otherUser))
+        Response(otherUser, value(true))
       case "state" :: "fail" :: Nil =>
         val failure = Future.failed(new Exception("minus"))
-        Response(value(true), Reaction(failure))
+        Response(failure, value(true))
       case "broken" :: Nil =>
-        Response(error("an error"), Reaction(state))
+        Response(state, error("an error"))
+      case _ => Response(state, error("path not found"))
     }
-
-    result getOrElse Response(error("path not found"), Reaction(state))
   }
 
   override def onEvent(client: NotifiableClient[String], state: Future[Option[String]], event: String) = {
