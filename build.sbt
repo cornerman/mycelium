@@ -49,6 +49,8 @@ lazy val mycelium = crossProject
     name := "mycelium",
     libraryDependencies ++=
       Deps.scribe.value ::
+      Deps.chameleon.value ::
+
       Deps.boopickle.value % Test ::
       Deps.scalaTest.value % Test ::
       Nil

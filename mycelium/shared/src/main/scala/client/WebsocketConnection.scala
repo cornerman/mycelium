@@ -1,7 +1,7 @@
 package mycelium.client
 
-import mycelium.core._
 import mycelium.core.message._
+import chameleon._
 
 import java.util.{Timer, TimerTask}
 
@@ -14,8 +14,8 @@ trait WebsocketListener[PickleType] {
 trait WebsocketConnection[PickleType] {
   def send(value: PickleType): Unit
 
-  def withPing[Payload](pingIdleMillis: Int)(implicit writer: Writer[ClientMessage[Payload], PickleType]) = {
-    val serializedPing = writer.write(Ping())
+  def withPing[Payload](pingIdleMillis: Int)(implicit serializer: Serializer[ClientMessage[Payload], PickleType]) = {
+    val serializedPing = serializer.serialize(Ping())
     new PingingWebsocketConnection[PickleType](this, serializedPing, pingIdleMillis)
   }
 

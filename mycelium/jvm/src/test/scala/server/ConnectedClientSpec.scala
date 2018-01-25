@@ -1,10 +1,9 @@
 package mycelium.server
 
-import java.nio.ByteBuffer
-
 import akka.actor._
 import akka.testkit.{ ImplicitSender, TestActorRef, TestKit }
 import boopickle.Default._
+import java.nio.ByteBuffer
 import org.scalatest._
 import mycelium.core.message._
 
@@ -20,17 +19,17 @@ class TestRequestHandler extends FullRequestHandler[ByteBuffer, String, String, 
   override val initialState = Future.successful(None)
 
   override def onRequest(client: NotifiableClient[String], state: Future[Option[String]], path: List[String], args: ByteBuffer) = {
-    def read[S : Pickler](ts: ByteBuffer) = Unpickle[S].fromBytes(ts)
-    def write[S : Pickler](ts: S) = Right(Pickle.intoBytes[S](ts))
-    def value[S : Pickler](ts: S, events: Seq[String] = Seq.empty) = Future.successful(ReturnValue(write(ts), events))
-    def valueFut[S : Pickler](ts: Future[S], events: Seq[String] = Seq.empty) = ts.map(ts => ReturnValue(write(ts), events))
+    def deserialize[S : Pickler](ts: ByteBuffer) = Unpickle[S].fromBytes(ts)
+    def serialize[S : Pickler](ts: S) = Right(Pickle.intoBytes[S](ts))
+    def value[S : Pickler](ts: S, events: Seq[String] = Seq.empty) = Future.successful(ReturnValue(serialize(ts), events))
+    def valueFut[S : Pickler](ts: Future[S], events: Seq[String] = Seq.empty) = ts.map(ts => ReturnValue(serialize(ts), events))
     def error(ts: String, events: Seq[String] = Seq.empty) = Future.successful(ReturnValue(Left(ts), events))
 
     path match {
       case "true" :: Nil =>
         Response(state, value(true))
       case "api" :: Nil =>
-        val str = read[String](args)
+        val str = deserialize[String](args)
         Response(state, value(str.reverse))
       case "event" :: Nil =>
         val events = Seq("event")

@@ -2,6 +2,7 @@ package mycelium.server
 
 import mycelium.core._
 import mycelium.core.message._
+import chameleon._
 
 import akka.NotUsed
 import akka.actor._
@@ -15,8 +16,8 @@ object WebsocketServerFlow {
     config: ServerConfig,
     handler: RequestHandler[Payload, Event, PublishEvent, Failure, State])(implicit
     system: ActorSystem,
-    writer: Writer[ServerMessage[Payload, Event, Failure], PickleType],
-    reader: Reader[ClientMessage[Payload], PickleType],
+    serializer: Serializer[ServerMessage[Payload, Event, Failure], PickleType],
+    deserializer: Deserializer[ClientMessage[Payload], PickleType],
     builder: AkkaMessageBuilder[PickleType]): Type = {
 
     val connectedClientActor = system.actorOf(Props(new ConnectedClient(handler)))
@@ -26,7 +27,7 @@ object WebsocketServerFlow {
         case m: Message =>
           val result = for {
             value <- builder.unpack(m).toRight(s"Builder does not support message: $m").right
-            msg <- reader.read(value).left.map(t => s"Reader failed: ${t.getMessage}").right
+            msg <- deserializer.deserialize(value).left.map(t => s"Deserializer failed: ${t.getMessage}").right
           } yield msg
 
           result match {
@@ -44,7 +45,7 @@ object WebsocketServerFlow {
           connectedClientActor ! ConnectedClient.Connect(outActor)
           NotUsed
         }.map { msg =>
-          val value = writer.write(msg)
+          val value = serializer.serialize(msg)
           builder.pack(value)
         }
 

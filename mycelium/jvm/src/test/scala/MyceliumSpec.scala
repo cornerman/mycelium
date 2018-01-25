@@ -1,23 +1,25 @@
 package test
 
+import org.scalatest._
+
 import mycelium.client._
 import mycelium.server._
 import mycelium.core._
 import mycelium.core.message._
-
+import boopickle.Default._
+import java.nio.ByteBuffer
+import chameleon._
+import chameleon.boopickle._
 import akka.actor.ActorSystem
 import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.stream.scaladsl._
-import org.scalatest._
-import boopickle.Default._
+
 import scala.concurrent.Future
-import java.nio.ByteBuffer
 
 class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
   //TODO: why does it need executionContext
   implicit override def executionContext = scala.concurrent.ExecutionContext.Implicits.global
 
-  implicit def serializer[T : Pickler] = new BoopickleSerializer[T]
   implicit val system = ActorSystem()
   implicit val materializer = ActorMaterializer()
 
@@ -55,14 +57,14 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
 
     val payloadValue = 1
     val builder = implicitly[AkkaMessageBuilder[ByteBuffer]]
-    val writer = implicitly[Writer[ClientMessage[Payload], ByteBuffer]]
-    val reader = implicitly[Reader[ServerMessage[Payload, Event, Failure], ByteBuffer]]
+    val serializer = implicitly[Serializer[ClientMessage[Payload], ByteBuffer]]
+    val deserializer = implicitly[Deserializer[ServerMessage[Payload, Event, Failure], ByteBuffer]]
     val request = CallRequest(1, "foo" :: "bar" :: Nil, payloadValue)
-    val msg = builder.pack(writer.write(request))
+    val msg = builder.pack(serializer.serialize(request))
 
     val (_, received) = flow.runWith(Source(msg :: Nil), Sink.head)
     val response = received.map { msg =>
-      builder.unpack(msg).map(s => reader.read(s).right.get)
+      builder.unpack(msg).map(s => deserializer.deserialize(s).right.get)
     }
 
     val expected = CallResponse(1, Right(payloadValue))

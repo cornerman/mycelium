@@ -1,6 +1,7 @@
 package test
 
 import mycelium.client._
+import chameleon.boopickle._
 
 import org.scalatest._
 import boopickle.Default._
@@ -11,8 +12,6 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
 
   //TODO: why does it need executionContext
   implicit override def executionContext = scala.concurrent.ExecutionContext.Implicits.global
-
-  implicit def serializer[T : Pickler] = new BoopickleSerializer[T]
 
   type Payload = String
   type Event = String
