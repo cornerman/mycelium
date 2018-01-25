@@ -1,10 +1,16 @@
 package mycelium.server
 
 import akka.actor._
-import akka.pattern.pipe
 import mycelium.core.message._
 
 import scala.concurrent.Future
+
+sealed trait DisconnectReason
+object DisconnectReason {
+  case object Stopped extends DisconnectReason
+  case object Killed extends DisconnectReason
+  case class StateFailed(failure: Throwable) extends DisconnectReason
+}
 
 class NotifiableClient[PublishEvent](actor: ActorRef) {
   private[mycelium] case class Notify(event: PublishEvent)

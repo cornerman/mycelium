@@ -6,12 +6,6 @@ case class HandlerReaction[Event, State](state: Future[State], events: Future[Se
 case class HandlerReturnValue[Payload, Event, Failure](result: Either[Failure, Payload], events: Seq[Event])
 case class HandlerResponse[Payload, Event, Failure, State](state: Future[State], value: Future[HandlerReturnValue[Payload, Event, Failure]])
 
-sealed trait DisconnectReason
-object DisconnectReason {
-  case object Stopped extends DisconnectReason
-  case class StateFailed(failure: Throwable) extends DisconnectReason
-}
-
 trait RequestHandler[Payload, Event, PublishEvent, Failure, State] {
   type Reaction = HandlerReaction[Event, State]
   type ReturnValue = HandlerReturnValue[Payload, Event, Failure]
