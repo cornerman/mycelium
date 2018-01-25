@@ -4,7 +4,7 @@ import org.scalajs.dom._
 
 import scala.scalajs.js
 import scala.scalajs.js.|
-import scala.scalajs.js.annotation.{JSImport, ScalaJSDefined}
+import scala.scalajs.js.annotation.JSImport
 import org.scalajs.dom._
 
 object WebSocketConstructor {
@@ -17,7 +17,6 @@ object WebSocketConstructor {
   }
 }
 
-@ScalaJSDefined
 trait ReconnectingWebsocketOptions extends js.Object {
   val maxReconnectionDelay: js.UndefOr[Int] = js.undefined
   val minReconnectionDelay: js.UndefOr[Int] = js.undefined

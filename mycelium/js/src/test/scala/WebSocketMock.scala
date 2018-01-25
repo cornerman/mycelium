@@ -1,7 +1,7 @@
 package test
 
 import scala.scalajs.js
-import scala.scalajs.js.annotation.{JSImport, ScalaJSDefined}
+import scala.scalajs.js.annotation.JSImport
 
 @js.native
 @JSImport("html5-websocket", JSImport.Namespace)

@@ -22,7 +22,6 @@ lazy val commonSettings = Seq(
     "-Ywarn-value-discard" ::
     "-Ywarn-nullary-override" ::
     "-Ywarn-nullary-unit" ::
-    "-Ywarn-unused" ::
     Nil,
 
   scalacOptions ++= {
@@ -55,27 +54,26 @@ lazy val mycelium = crossProject
       Nil
   )
   .jvmSettings(
-    libraryDependencies ++= (
+    libraryDependencies ++=
       Deps.akka.http.value ::
       Deps.akka.actor.value ::
       Deps.akka.stream.value ::
       Deps.akka.testkit.value % Test ::
       Nil
-    )
   )
   .jsSettings(
-    npmDependencies in Compile ++= (
+    scalacOptions ++=
+      "-P:scalajs:sjsDefinedByDefault" ::
+      Nil,
+    npmDependencies in Compile ++=
       "reconnecting-websocket" -> "3.1.0" ::
-      Nil
-    ),
-    npmDependencies in Test ++= (
+      Nil,
+    npmDependencies in Test ++=
       "html5-websocket" -> "2.0.1" ::
-      Nil
-    ),
-    libraryDependencies ++= (
+      Nil,
+    libraryDependencies ++=
       Deps.scalajs.dom.value ::
       Nil
-    )
   )
 
 lazy val myceliumJVM = mycelium.jvm
