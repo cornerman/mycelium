@@ -27,7 +27,7 @@ object WebsocketServerFlow {
         case m: Message =>
           val result = for {
             value <- builder.unpack(m).toRight(s"Builder does not support message: $m").right
-            msg <- deserializer.deserialize(value).left.map(t => s"Deserializer failed: ${t.getMessage}").right
+            msg <- deserializer.deserialize(value).left.map(t => s"Deserializer failed: $t").right
           } yield msg
 
           result match {
