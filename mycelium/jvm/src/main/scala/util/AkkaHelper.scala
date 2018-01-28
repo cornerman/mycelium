@@ -7,7 +7,7 @@ object AkkaHelper {
   implicit class PeekableSource[T, M](val src: Source[T, M]) extends AnyVal {
     def peekMaterializedValue: (Source[T, M], Future[M]) = {
       val p = Promise[M]
-      val s = src.mapMaterializedValue { m => p.trySuccess(m); m }
+      val s = src.mapMaterializedValue { m => p.success(m); m }
       (s, p.future)
     }
   }

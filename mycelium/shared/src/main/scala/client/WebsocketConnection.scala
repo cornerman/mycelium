@@ -12,7 +12,7 @@ trait WebsocketListener[PickleType] {
 }
 
 trait WebsocketConnection[PickleType] {
-  def send(value: PickleType): Unit
+  def send(value: WebsocketMessage[PickleType]): Unit
 
   def withPing[Payload](pingIdleMillis: Int)(implicit serializer: Serializer[ClientMessage[Payload], PickleType]) = {
     val serializedPing = serializer.serialize(Ping())
@@ -25,19 +25,20 @@ trait WebsocketConnection[PickleType] {
 
 //TODO: cancel timers? akka schedule?
 class PingingWebsocketConnection[PickleType](connection: WebsocketConnection[PickleType], ping: PickleType, pingIdleMillis: Int) extends WebsocketConnection[PickleType] {
-  private val timer = new Timer
   private val acknowledgeTraffic: () => Unit = {
-    var currTask = Option.empty[TimerTask]
+    val timer = new Timer
     () => {
-      currTask.foreach(_.cancel())
+      timer.cancel()
       timer.purge()
-      val task = new TimerTask { def run() = send(ping) }
+      val task = new TimerTask {
+        def run() = send(WebsocketMessage.Direct(ping, () => (), () => ()))
+      }
+
       timer.schedule(task, pingIdleMillis)
-      currTask = Some(task)
     }
   }
 
-  def send(value: PickleType): Unit = {
+  def send(value: WebsocketMessage[PickleType]): Unit = {
     acknowledgeTraffic()
     connection.send(value)
   }

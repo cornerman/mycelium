@@ -5,6 +5,8 @@ import chameleon._
 
 import scala.concurrent.{ ExecutionContext, Future }
 
+case object DroppedMessageException extends Exception
+
 class WebsocketClient[PickleType, Payload, Event, Failure](
   ws: WebsocketConnection[PickleType],
   handler: IncidentHandler[Event],
@@ -12,25 +14,48 @@ class WebsocketClient[PickleType, Payload, Event, Failure](
   serializer: Serializer[ClientMessage[Payload], PickleType],
   deserializer: Deserializer[ServerMessage[Payload, Event, Failure], PickleType]) {
 
-  def send(path: List[String], payload: Payload)(implicit ec: ExecutionContext): Future[Either[Failure, Payload]] = {
+  def send(path: List[String], payload: Payload, behaviour: SendBehaviour)(implicit ec: ExecutionContext): Future[Either[Failure, Payload]] = {
     val (id, promise) = callRequests.open()
-
     val request = CallRequest(id, path, payload)
-    val serialized = serializer.serialize(request)
-    ws.send(serialized)
+    val pickledRequest = serializer.serialize(request)
+
+    def startTimeout(): Unit = {
+      callRequests.startTimeout(promise)
+    }
+    def fail(): Unit = {
+      promise tryFailure DroppedMessageException
+      ()
+    }
+
+    val message = behaviour match {
+      case SendBehaviour.NowOrFail =>
+        WebsocketMessage.Direct(pickledRequest, startTimeout _, fail _)
+      case SendBehaviour.WhenConnected(priority) =>
+        WebsocketMessage.Buffered(pickledRequest, startTimeout _, priority)
+    }
+
+    ws.send(message)
+
+    promise.future.failed.foreach { err =>
+      scribe.error(s"Request $id failed: $err")
+    }
 
     promise.future
   }
 
   def run(location: String): Unit = ws.run(location, new WebsocketListener[PickleType] {
-    private var wasClosed = false
-    def onConnect() = handler.onConnect(wasClosed)
-    def onClose() = wasClosed = true
+    def onConnect() = handler.onConnect()
+    def onClose() = handler.onClose()
     def onMessage(msg: PickleType): Unit = {
       deserializer.deserialize(msg) match {
-        case Right(CallResponse(seqId, result: Either[Failure@unchecked, Payload@unchecked])) =>
-          callRequests.get(seqId).foreach(_ trySuccess result)
-        case Right(Notification(events: List[Event@unchecked])) =>
+        case Right(CallResponse(seqId, result)) =>
+          callRequests.get(seqId) match {
+            case Some(promise) =>
+              val completed = promise trySuccess result
+              if (!completed) scribe.warn(s"Ignoring incoming response ($seqId), it already timed out.")
+            case None => scribe.warn(s"Ignoring incoming response ($seqId), unknown sequence id.")
+          }
+        case Right(Notification(events)) =>
           handler.onEvents(events)
         case Right(Pong()) =>
           // do nothing

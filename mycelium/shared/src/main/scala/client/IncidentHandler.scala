@@ -1,6 +1,7 @@
 package mycelium.client
 
-trait IncidentHandler[Event] {
-  def onConnect(reconnect: Boolean): Unit
-  def onEvents(events: Seq[Event]): Unit
+class IncidentHandler[Event] {
+  def onConnect(): Unit = {}
+  def onClose(): Unit = {}
+  def onEvents(events: Seq[Event]): Unit = {}
 }

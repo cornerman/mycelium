@@ -6,9 +6,7 @@ import chameleon._
 
 import akka.actor.ActorSystem
 
-class WebsocketServer(createFlow: () => WebsocketServerFlow.Type) {
-  def flow() = createFlow()
-}
+class WebsocketServer(val flow: () => WebsocketServerFlow.Type)
 object WebsocketServer {
   def apply[PickleType, Event, PublishEvent, Failure, State](
     config: ServerConfig,

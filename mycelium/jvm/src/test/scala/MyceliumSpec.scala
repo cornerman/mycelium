@@ -16,12 +16,17 @@ import akka.stream.scaladsl._
 
 import scala.concurrent.Future
 
-class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
+class MyceliumSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
   //TODO: why does it need executionContext
   implicit override def executionContext = scala.concurrent.ExecutionContext.Implicits.global
 
   implicit val system = ActorSystem()
   implicit val materializer = ActorMaterializer()
+
+  override def afterAll(): Unit = {
+    system.terminate()
+    ()
+  }
 
   type Payload = Int
   type Event = String
@@ -29,20 +34,20 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
   type State = String
 
   "client" in {
-    val config = ClientConfig(requestTimeoutMillis = 1)
-    val akkaConfig = AkkaWebsocketConfig(bufferSize = 5, overflowStrategy = OverflowStrategy.fail)
+    val config = ClientConfig(requestTimeoutMillis = 40000)
+    val akkaConfig = AkkaWebsocketConfig(bufferSize = 100, overflowStrategy = OverflowStrategy.fail)
 
-    val handler = new IncidentHandler[Event] {
-      def onConnect(reconnect: Boolean): Unit = ???
-      def onEvents(events: Seq[Event]): Unit = ???
-    }
-
+    val handler = new IncidentHandler[Event]
     val client = WebsocketClient.withPayload[ByteBuffer, Payload, Event, Failure](
-      AkkaWebsocketConnection(akkaConfig), config, handler)
+      AkkaWebsocketConnection[ByteBuffer](akkaConfig), config, handler)
 
-    val res = client.send("foo" :: "bar" :: Nil, 1)
+    // client.run("ws://hans")
 
-    res.failed.map(_ mustEqual TimeoutException)
+    val res = client.send("foo" :: "bar" :: Nil, 1, SendBehaviour.NowOrFail)
+    val res2 = client.send("foo" :: "bar" :: Nil, 1, SendBehaviour.WhenConnected)
+
+    res.failed.map(_ mustEqual DroppedMessageException)
+    res2.value mustEqual None
   }
 
   "server" in {

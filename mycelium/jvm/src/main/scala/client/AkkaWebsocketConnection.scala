@@ -3,64 +3,98 @@ package mycelium.client
 import mycelium.core.AkkaMessageBuilder
 import mycelium.util.AkkaHelper._
 
-import akka.actor.ActorSystem
-import akka.Done
+import akka.actor._
 import akka.http.scaladsl.Http
-import akka.stream.{ ActorMaterializer, OverflowStrategy }
+import akka.stream.{ ActorMaterializer, OverflowStrategy, QueueOfferResult }
 import akka.stream.scaladsl._
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.ws._
+import scala.concurrent.duration._
+import scala.concurrent.{ExecutionContext, Future}
 
-import scala.concurrent.Future
+case class AkkaWebsocketConfig(bufferSize: Int, overflowStrategy: OverflowStrategy, minBackoff: FiniteDuration = 1.seconds, maxBackoff: FiniteDuration = 10.seconds, randomFactor: Double = 0.2)
 
-case class AkkaWebsocketConfig(bufferSize: Int, overflowStrategy: OverflowStrategy)
 class AkkaWebsocketConnection[PickleType](config: AkkaWebsocketConfig)(implicit system: ActorSystem, materializer: ActorMaterializer, builder: AkkaMessageBuilder[PickleType]) extends WebsocketConnection[PickleType] {
   import system.dispatcher
 
-  private val (outgoing, queue) =
-    Source.queue[Message](config.bufferSize, config.overflowStrategy).peekMaterializedValue
+  private val (outgoing, outgoingMaterialized) = Source.queue[Message](config.bufferSize, config.overflowStrategy).peekMaterializedValue
+  private val sendActor = system.actorOf(Props(new SendActor(outgoingMaterialized)))
 
-  def send(value: PickleType): Unit = queue.foreach { queue =>
-    val message = builder.pack(value)
-    queue offer message
-  }
+  def send(msg: WebsocketMessage[PickleType]): Unit = sendActor ! msg
 
+  //TODO return result signaling closed
   def run(location: String, listener: WebsocketListener[PickleType]) = {
-    val incoming: Sink[Message, Future[Done]] =
-      Sink.foreach[Message] { message =>
-        builder.unpack(message) match {
-          case Some(value) => listener.onMessage(value)
-          case None => scribe.warn(s"Ignoring websocket message. Builder does not support message: $message")
-        }
-      }
-
-    // val bcast = Broadcast[Message]
-
-    //TODO reconnecting:
-    //singleWebSocketRequest(..., Flow[Message].alsoTo(Sink.onComplete(...)).via(yourHandlerFlow))
-    // https://groups.google.com/forum/#!topic/akka-user/cWwxrx5APqI/discussion
-    val webSocketFlow = Http()
-      .webSocketClientFlow(WebSocketRequest(location))
-
-    val (upgradeResponse, closed) =
-      outgoing
-        .viaMat(webSocketFlow)(Keep.right)
-        .toMat(incoming)(Keep.both)
-        .run()
-
-    val connected = upgradeResponse.map { upgrade =>
-      if (upgrade.response.status == StatusCodes.SwitchingProtocols) Some(Done)
-      else {
-        scribe.error("Failed to open websocket connection: unable to upgrade request")
-        None
+    val incoming = Sink.foreach[Message] { message =>
+      builder.unpack(message) match {
+        case Some(value) => listener.onMessage(value)
+        case None => scribe.warn(s"Ignoring websocket message. Builder does not support message: $message")
       }
     }
 
-    connected.foreach(_.foreach(_ => listener.onConnect())) //TODO: do we need to close, if connect failed?
-    closed.foreach(_ => listener.onClose())
+    val wsFlow = RestartFlow.withBackoff(minBackoff = config.minBackoff, maxBackoff = config.maxBackoff, randomFactor = config.randomFactor) { () =>
+      Http()
+        .webSocketClientFlow(WebSocketRequest(location))
+        .mapMaterializedValue { upgrade =>
+          upgrade.foreach { upgrade =>
+            if (upgrade.response.status == StatusCodes.SwitchingProtocols) {
+              outgoingMaterialized.foreach { _ => // TODO: need to wait for materialized queue, as actor depends on it...
+                listener.onConnect()
+                sendActor ! SendActor.Connected
+              }
+            }
+          }
+          upgrade
+        }
+        .mapError { case t =>
+          scribe.warn(s"Error in websocket connection: $t")
+          sendActor ! SendActor.Closed
+          listener.onClose()
+          t
+        }
+    }
+
+    val closed = outgoing
+      .viaMat(wsFlow)(Keep.left)
+      .toMat(incoming)(Keep.right)
+      .run()
+
+    closed.onComplete { res =>
+      scribe.error(s"Websocket connection finally closed: $res")
+    }
   }
 }
 
 object AkkaWebsocketConnection {
   def apply[PickleType : AkkaMessageBuilder](config: AkkaWebsocketConfig)(implicit system: ActorSystem, materializer: ActorMaterializer) = new AkkaWebsocketConnection(config)
+}
+
+//TODO future source is dangerous as it might complete before we receive a Connected message
+private[client] class SendActor[PickleType](queue: Future[SourceQueue[Message]])(implicit ec: ExecutionContext, builder: AkkaMessageBuilder[PickleType]) extends Actor {
+  import SendActor._
+
+  private var isConnected = false
+  private val messageSender = new WebsocketMessageSender[PickleType, SourceQueue[Message]] {
+    override def senderOption = if (isConnected) queue.value.flatMap(_.toOption) else None
+    override def doSend(queue: SourceQueue[Message], rawMessage: PickleType) = {
+      val message = builder.pack(rawMessage)
+      queue.offer(message).foreach {
+        case QueueOfferResult.Enqueued => ()
+        case res => scribe.warn(s"Websocket connection could not send message: $res")
+      }
+    }
+  }
+
+  def receive = {
+    case Connected =>
+      isConnected = true
+      messageSender.trySendBuffer()
+    case Closed =>
+      isConnected = false
+    case message: WebsocketMessage[PickleType] =>
+      messageSender.sendOrBuffer(message)
+  }
+}
+private[client] object SendActor {
+  case object Connected
+  case object Closed
 }
