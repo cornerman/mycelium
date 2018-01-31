@@ -43,8 +43,8 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAl
 
     // client.run("ws://hans")
 
-    val res = client.send("foo" :: "bar" :: Nil, 1, SendBehaviour.NowOrFail)
-    val res2 = client.send("foo" :: "bar" :: Nil, 1, SendBehaviour.WhenConnected)
+    val res = client.send("foo" :: "bar" :: Nil, 1, SendType.NowOrFail)
+    val res2 = client.send("foo" :: "bar" :: Nil, 1, SendType.WhenConnected)
 
     res.failed.map(_ mustEqual DroppedMessageException)
     res2.value mustEqual None
