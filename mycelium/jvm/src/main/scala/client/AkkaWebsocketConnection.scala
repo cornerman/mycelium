@@ -25,7 +25,7 @@ class AkkaWebsocketConnection[PickleType](config: AkkaWebsocketConfig)(implicit 
   //TODO return result signaling closed
   def run(location: String, listener: WebsocketListener[PickleType]) = {
     val incoming = Sink.foreach[Message] { message =>
-      builder.unpack(message) match {
+      builder.unpack(message).foreach { //TODO we are breaking the order here, better sequence the future[m] inside the sink? foldasync?
         case Some(value) => listener.onMessage(value)
         case None => scribe.warn(s"Ignoring websocket message. Builder does not support message: $message")
       }

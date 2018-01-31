@@ -8,6 +8,7 @@ import akka.NotUsed
 import akka.actor._
 import akka.http.scaladsl.model.ws.Message
 import akka.stream.scaladsl._
+import scala.util.control.NonFatal
 
 object WebsocketServerFlow {
   type Type = Flow[Message, Message, NotUsed]
@@ -19,24 +20,29 @@ object WebsocketServerFlow {
     serializer: Serializer[ServerMessage[Payload, Event, Failure], PickleType],
     deserializer: Deserializer[ClientMessage[Payload], PickleType],
     builder: AkkaMessageBuilder[PickleType]): Type = {
+    import system.dispatcher
 
     val connectedClientActor = system.actorOf(Props(new ConnectedClient(handler)))
 
     val incoming: Sink[Message, NotUsed] =
-      Flow[Message].mapConcat {
+      Flow[Message].mapAsync(parallelism = 1) {
         case m: Message =>
-          val result = for {
-            value <- builder.unpack(m).toRight(s"Builder does not support message: $m").right
-            msg <- deserializer.deserialize(value).left.map(t => s"Deserializer failed: $t").right
-          } yield msg
+          builder.unpack(m)
+            .map(_.toRight(s"Builder does not support message: $m"))
+            .recover { case NonFatal(t) => Left(s"Builder threw exception: $t") }
+      }.mapConcat { unpackedValue =>
+        val result = for {
+          value <- unpackedValue.right
+          msg <- deserializer.deserialize(value).left.map(t => s"Deserializer failed: $t").right
+        } yield msg
 
-          result match {
-            case Right(res) =>
-              res :: Nil
-            case Left(err) =>
-              scribe.warn(s"Ignoring websocket message. $err")
-              Nil
-          }
+        result match {
+          case Right(res) =>
+            res :: Nil
+          case Left(err) =>
+            scribe.warn(s"Ignoring websocket message. $err")
+            Nil
+        }
       }.to(Sink.actorRef[ClientMessage[Payload]](connectedClientActor, ConnectedClient.Stop))
 
     val outgoing: Source[Message, NotUsed] =
