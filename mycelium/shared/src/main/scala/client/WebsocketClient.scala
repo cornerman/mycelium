@@ -6,7 +6,7 @@ import chameleon._
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration._
 
-case class WebsocketClientConfig(minReconnectDelay: FiniteDuration = 60.seconds, maxReconnectDelay: FiniteDuration = 1.seconds, delayReconnectFactor: Double = 1.3, connectingTimeout: FiniteDuration = 5.seconds, pingInterval: FiniteDuration = 45.seconds)
+case class WebsocketClientConfig(minReconnectDelay: FiniteDuration = 1.seconds, maxReconnectDelay: FiniteDuration = 60.seconds, delayReconnectFactor: Double = 1.3, connectingTimeout: FiniteDuration = 5.seconds, pingInterval: FiniteDuration = 45.seconds)
 
 class WebsocketClientWithPayload[PickleType, Payload, Event, Failure](
   wsConfig: WebsocketClientConfig,
