@@ -12,12 +12,12 @@ class WebsocketClientWithPayload[PickleType, Payload, Event, Failure](
   wsConfig: WebsocketClientConfig,
   ws: WebsocketConnection[PickleType],
   handler: IncidentHandler[Event],
-  callRequests: CallRequests[Either[Failure, Payload]])(implicit
+  requestMap: RequestMap[Either[Failure, Payload]])(implicit
   serializer: Serializer[ClientMessage[Payload], PickleType],
   deserializer: Deserializer[ServerMessage[Payload, Event, Failure], PickleType]) {
 
   def send(path: List[String], payload: Payload, sendType: SendType, requestTimeout: FiniteDuration)(implicit ec: ExecutionContext): Future[Either[Failure, Payload]] = {
-    val (seqId, promise) = callRequests.open()
+    val (seqId, promise) = requestMap.open()
     val request = CallRequest(seqId, path, payload)
     val pickledRequest = serializer.serialize(request)
     val message = sendType match {
@@ -37,7 +37,7 @@ class WebsocketClientWithPayload[PickleType, Payload, Event, Failure](
     def onMessage(msg: PickleType): Unit = {
       deserializer.deserialize(msg) match {
         case Right(CallResponse(seqId, result)) =>
-          callRequests.get(seqId) match {
+          requestMap.get(seqId) match {
             case Some(promise) =>
               val completed = promise trySuccess result
               if (!completed) scribe.warn(s"Ignoring incoming response ($seqId), it already timed out.")
@@ -69,7 +69,7 @@ object WebsocketClient {
     handler: IncidentHandler[Event])(implicit
     serializer: Serializer[ClientMessage[Payload], PickleType],
     deserializer: Deserializer[ServerMessage[Payload, Event, Failure], PickleType]) = {
-    val callRequests = new CallRequests[Either[Failure, Payload]]
-    new WebsocketClientWithPayload(config, connection, handler, callRequests)
+    val requestMap = new RequestMap[Either[Failure, Payload]]
+    new WebsocketClientWithPayload(config, connection, handler, requestMap)
   }
 }
