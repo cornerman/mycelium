@@ -7,10 +7,11 @@ import scala.concurrent.{ ExecutionContext, Future }
 
 case object DroppedMessageException extends Exception
 
-class WebsocketClient[PickleType, Payload, Event, Failure](
+class WebsocketClientWithPayload[PickleType, Payload, Event, Failure](
+  wsConfig: WebsocketConfig,
   ws: WebsocketConnection[PickleType],
   handler: IncidentHandler[Event],
-  callRequests: OpenRequests[Either[Failure, Payload]])(implicit
+  callRequests: CallRequests[Either[Failure, Payload]])(implicit
   serializer: Serializer[ClientMessage[Payload], PickleType],
   deserializer: Deserializer[ServerMessage[Payload, Event, Failure], PickleType]) {
 
@@ -43,7 +44,7 @@ class WebsocketClient[PickleType, Payload, Event, Failure](
     promise.future
   }
 
-  def run(location: String): Unit = ws.run(location, new WebsocketListener[PickleType] {
+  def run(location: String): Unit = ws.run(location, wsConfig, serializer.serialize(Ping()), new WebsocketListener[PickleType] {
     def onConnect() = handler.onConnect()
     def onClose() = handler.onClose()
     def onMessage(msg: PickleType): Unit = {
@@ -81,7 +82,7 @@ object WebsocketClient {
     handler: IncidentHandler[Event])(implicit
     serializer: Serializer[ClientMessage[Payload], PickleType],
     deserializer: Deserializer[ServerMessage[Payload, Event, Failure], PickleType]) = {
-    val callRequests = new OpenRequests[Either[Failure, Payload]](config.requestTimeoutMillis)
-    new WebsocketClient(connection, handler, callRequests)
+    val callRequests = new CallRequests[Either[Failure, Payload]](config.requestTimeout)
+    new WebsocketClientWithPayload(config.websocketConfig, connection, handler, callRequests)
   }
 }

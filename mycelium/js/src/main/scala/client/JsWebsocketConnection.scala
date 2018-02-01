@@ -8,15 +8,18 @@ import scala.scalajs.js
 import scala.scalajs.js.typedarray.ArrayBuffer
 import scala.util.Try
 import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.duration.FiniteDuration
+import java.util.{Timer, TimerTask}
 
-case class JsWebsocketConfig(maxReconnectionDelay: Int = 10000, minReconnectionDelay: Int = 1500, reconnectionDelayGrowFactor: Double = 1.3, connectionTimeout: Int = 4000, debug: Boolean = false)
-
-class JsWebsocketConnection[PickleType](config: JsWebsocketConfig)(implicit builder: JsMessageBuilder[PickleType], ec: ExecutionContext) extends WebsocketConnection[PickleType] {
+class JsWebsocketConnection[PickleType](implicit builder: JsMessageBuilder[PickleType], ec: ExecutionContext) extends WebsocketConnection[PickleType] {
 
   private var wsOpt: Option[WebSocket] = None
+  private var keepAliveTracker: Option[KeepAliveTracker] = None
   private val messageSender = new WebsocketMessageSender[PickleType, WebSocket] {
     override def senderOption = wsOpt
     override def doSend(ws: WebSocket, rawMessage: PickleType) = {
+      keepAliveTracker.foreach(_.acknowledgeTraffic())
+
       val message = builder.pack(rawMessage)
       val tried = (message: Any) match {
         case s: String => Try(ws.send(s))
@@ -32,13 +35,16 @@ class JsWebsocketConnection[PickleType](config: JsWebsocketConfig)(implicit buil
 
   def send(value: WebsocketMessage[PickleType]): Unit = messageSender.sendOrBuffer(value)
 
-  def run(location: String, listener: WebsocketListener[PickleType]): Unit = if (wsOpt.isEmpty) {
+  def run(location: String, wsConfig: WebsocketConfig, pingMessage: PickleType, listener: WebsocketListener[PickleType]): Unit = if (wsOpt.isEmpty) {
+    val keepAliveTracker = new KeepAliveTracker(wsConfig.pingInterval, () => send(WebsocketMessage.Direct(pingMessage, () => (), () => ())))
+    this.keepAliveTracker = Some(keepAliveTracker) //TODO should not set this here
+
     val websocket = new ReconnectingWebSocket(location, options = new ReconnectingWebsocketOptions {
-      override val maxReconnectionDelay: js.UndefOr[Int] = config.maxReconnectionDelay
-      override val minReconnectionDelay: js.UndefOr[Int] = config.minReconnectionDelay
-      override val reconnectionDelayGrowFactor: js.UndefOr[Double] = config.reconnectionDelayGrowFactor
-      override val connectionTimeout: js.UndefOr[Int] = config.connectionTimeout
-      override val debug: js.UndefOr[Boolean] = config.debug
+      override val maxReconnectionDelay: js.UndefOr[Int] = wsConfig.maxReconnectDelay.toMillis.toInt
+      override val minReconnectionDelay: js.UndefOr[Int] = wsConfig.minReconnectDelay.toMillis.toInt
+      override val reconnectionDelayGrowFactor: js.UndefOr[Double] = wsConfig.delayReconnectFactor
+      override val connectionTimeout: js.UndefOr[Int] = wsConfig.connectingTimeout.toMillis.toInt
+      override val debug: js.UndefOr[Boolean] = false
     })
 
     websocket.onerror = { (e: ErrorEvent) =>
@@ -57,6 +63,8 @@ class JsWebsocketConnection[PickleType](config: JsWebsocketConfig)(implicit buil
     }
 
     websocket.onmessage = { (e: MessageEvent) =>
+      keepAliveTracker.acknowledgeTraffic()
+
       val value = e.data match {
         case s: String => builder.unpack(s)
         case a: ArrayBuffer => builder.unpack(a)
@@ -72,6 +80,14 @@ class JsWebsocketConnection[PickleType](config: JsWebsocketConfig)(implicit buil
   }
 }
 
-object JsWebsocketConnection {
-  def apply[PickleType : JsMessageBuilder](config: JsWebsocketConfig)(implicit ec: ExecutionContext) = new JsWebsocketConnection(config)
+private[client] class KeepAliveTracker(pingInterval: FiniteDuration, sendPing: () => Unit) {
+  private val timer = new Timer
+  private var currentTask = Option.empty[TimerTask]
+  def acknowledgeTraffic(): Unit = {
+    currentTask.foreach(_.cancel())
+    timer.purge()
+    val task = new TimerTask { def run() = sendPing() }
+    timer.schedule(task, pingInterval.toMillis)
+    currentTask = Some(task)
+  }
 }

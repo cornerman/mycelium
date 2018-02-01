@@ -15,6 +15,7 @@ import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.stream.scaladsl._
 
 import scala.concurrent.Future
+import scala.concurrent.duration._
 
 class MyceliumSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
   //TODO: why does it need executionContext
@@ -34,12 +35,11 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAl
   type State = String
 
   "client" in {
-    val config = ClientConfig(requestTimeoutMillis = 40000)
+    val config = ClientConfig(requestTimeout = 30 seconds)
     val akkaConfig = AkkaWebsocketConfig(bufferSize = 100, overflowStrategy = OverflowStrategy.fail)
 
     val handler = new IncidentHandler[Event]
-    val client = WebsocketClient.withPayload[ByteBuffer, Payload, Event, Failure](
-      AkkaWebsocketConnection[ByteBuffer](akkaConfig), config, handler)
+    val client = WebsocketClient.withPayload[ByteBuffer, Payload, Event, Failure](new AkkaWebsocketConnection(akkaConfig), config, handler)
 
     // client.run("ws://hans")
 

@@ -10,24 +10,24 @@ import scala.concurrent.{Promise, Future}
 trait JsMessageBuilder[PickleType] {
   import JsMessageBuilder._
 
-  def pack(msg: PickleType): SendType
-  def unpack(m: SendType): Future[Option[PickleType]]
+  def pack(msg: PickleType): Message
+  def unpack(m: Message): Future[Option[PickleType]]
 }
 
 object JsMessageBuilder {
-  type SendType = String | ArrayBuffer | Blob
+  type Message = String | ArrayBuffer | Blob
 
   implicit val JsMessageBuilderString = new JsMessageBuilder[String] {
-    def pack(msg: String): SendType = msg
-    def unpack(m: SendType): Future[Option[String]] = (m: Any) match {
+    def pack(msg: String): Message = msg
+    def unpack(m: Message): Future[Option[String]] = (m: Any) match {
       case s: String => Future.successful(Some(s))
       case b: Blob => readBlob[String, String](_.readAsText(b))(identity)
       case _ => Future.successful(None)
     }
   }
   implicit val JsMessageBuilderByteBuffer = new JsMessageBuilder[ByteBuffer] {
-    def pack(msg: ByteBuffer): SendType = msg.arrayBuffer
-    def unpack(m: SendType): Future[Option[ByteBuffer]] = (m: Any) match {
+    def pack(msg: ByteBuffer): Message = msg.arrayBuffer
+    def unpack(m: Message): Future[Option[ByteBuffer]] = (m: Any) match {
       case a: ArrayBuffer => Future.successful(Option(TypedArrayBuffer.wrap(a)))
       case b: Blob => readBlob[ArrayBuffer, ByteBuffer](_.readAsArrayBuffer(b))(TypedArrayBuffer.wrap(_))
       case _ => Future.successful(None)

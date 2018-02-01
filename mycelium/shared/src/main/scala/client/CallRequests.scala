@@ -4,10 +4,11 @@ import mycelium.core.message._
 
 import java.util.{ Timer, TimerTask }
 import scala.concurrent.{ ExecutionContext, Promise }
+import scala.concurrent.duration.FiniteDuration
 
 case object TimeoutException extends Exception
 
-class OpenRequests[T](timeoutMillis: Int) {
+class CallRequests[T](timeout: FiniteDuration) {
   import collection.mutable
 
   private val openRequests = mutable.HashMap.empty[SequenceId, Promise[T]]
@@ -39,7 +40,7 @@ class OpenRequests[T](timeoutMillis: Int) {
       }
     }
 
-    timer.schedule(task, timeoutMillis)
+    timer.schedule(task, timeout.toMillis)
     promise.future.onComplete { _ =>
       timer.cancel()
       timer.purge()

@@ -6,6 +6,7 @@ import chameleon.boopickle._
 import org.scalatest._
 import boopickle.Default._
 import java.nio.ByteBuffer
+import scala.concurrent.duration._
 
 class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
   WebSocketMock.setup()
@@ -18,13 +19,9 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
   type Failure = Int
 
   "client" in {
-    val config = ClientConfig(requestTimeoutMillis = 1)
-    val jsConfig = JsWebsocketConfig()
-
+    val config = ClientConfig(requestTimeout = 1 milliseconds)
     val handler = new IncidentHandler[Event]
-
-    val client = WebsocketClient.withPayload[ByteBuffer, Payload, Event, Failure](
-      JsWebsocketConnection[ByteBuffer](jsConfig), config, handler)
+    val client = WebsocketClient.withPayload[ByteBuffer, Payload, Event, Failure](new JsWebsocketConnection, config, handler)
 
     // client.run("ws://hans")
 

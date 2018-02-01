@@ -1,7 +1,6 @@
 package mycelium.client
 
 import mycelium.core.AkkaMessageBuilder
-import mycelium.util.AkkaHelper._
 
 import akka.actor._
 import akka.http.scaladsl.Http
@@ -9,21 +8,27 @@ import akka.stream.{ ActorMaterializer, OverflowStrategy, QueueOfferResult }
 import akka.stream.scaladsl._
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.ws._
-import scala.concurrent.duration._
-import scala.concurrent.{ExecutionContext, Future}
+import akka.http.scaladsl.settings.ClientConnectionSettings
+import scala.concurrent.{ExecutionContext, Future, Promise}
 
-case class AkkaWebsocketConfig(bufferSize: Int, overflowStrategy: OverflowStrategy, minBackoff: FiniteDuration = 1.seconds, maxBackoff: FiniteDuration = 10.seconds, randomFactor: Double = 0.2)
+case class AkkaWebsocketConfig(bufferSize: Int, overflowStrategy: OverflowStrategy)
 
 class AkkaWebsocketConnection[PickleType](config: AkkaWebsocketConfig)(implicit system: ActorSystem, materializer: ActorMaterializer, builder: AkkaMessageBuilder[PickleType]) extends WebsocketConnection[PickleType] {
   import system.dispatcher
 
-  private val (outgoing, outgoingMaterialized) = Source.queue[Message](config.bufferSize, config.overflowStrategy).peekMaterializedValue
+  private val (outgoing, outgoingMaterialized) = {
+    val promise = Promise[SourceQueue[Message]]
+    val source = Source.queue[Message](config.bufferSize, config.overflowStrategy)
+                       .mapMaterializedValue { m => promise.success(m); m }
+    (source, promise.future)
+  }
+
   private val sendActor = system.actorOf(Props(new SendActor(outgoingMaterialized)))
 
   def send(msg: WebsocketMessage[PickleType]): Unit = sendActor ! msg
 
   //TODO return result signaling closed
-  def run(location: String, listener: WebsocketListener[PickleType]) = {
+  def run(location: String, wsConfig: WebsocketConfig, pingMessage: PickleType, listener: WebsocketListener[PickleType]) = {
     val incoming = Sink.foreach[Message] { message =>
       builder.unpack(message).foreach { //TODO we are breaking the order here, better sequence the future[m] inside the sink? foldasync?
         case Some(value) => listener.onMessage(value)
@@ -31,9 +36,9 @@ class AkkaWebsocketConnection[PickleType](config: AkkaWebsocketConfig)(implicit 
       }
     }
 
-    val wsFlow = RestartFlow.withBackoff(minBackoff = config.minBackoff, maxBackoff = config.maxBackoff, randomFactor = config.randomFactor) { () =>
+    val wsFlow = RestartFlow.withBackoff(minBackoff = wsConfig.minReconnectDelay, maxBackoff = wsConfig.maxReconnectDelay, randomFactor = wsConfig.delayReconnectFactor - 1) { () =>
       Http()
-        .webSocketClientFlow(WebSocketRequest(location))
+        .webSocketClientFlow(WebSocketRequest(location), settings = ClientConnectionSettings(system).withConnectingTimeout(wsConfig.connectingTimeout))
         .mapMaterializedValue { upgrade =>
           upgrade.foreach { upgrade =>
             if (upgrade.response.status == StatusCodes.SwitchingProtocols) {
@@ -53,7 +58,9 @@ class AkkaWebsocketConnection[PickleType](config: AkkaWebsocketConfig)(implicit 
         }
     }
 
+    val websocketPingMessage = builder.pack(pingMessage)
     val closed = outgoing
+      .keepAlive(wsConfig.pingInterval, () => websocketPingMessage)
       .viaMat(wsFlow)(Keep.left)
       .toMat(incoming)(Keep.right)
       .run()
@@ -62,10 +69,6 @@ class AkkaWebsocketConnection[PickleType](config: AkkaWebsocketConfig)(implicit 
       scribe.error(s"Websocket connection finally closed: $res")
     }
   }
-}
-
-object AkkaWebsocketConnection {
-  def apply[PickleType : AkkaMessageBuilder](config: AkkaWebsocketConfig)(implicit system: ActorSystem, materializer: ActorMaterializer) = new AkkaWebsocketConnection(config)
 }
 
 //TODO future source is dangerous as it might complete before we receive a Connected message
