@@ -3,33 +3,30 @@ package mycelium.client
 import mycelium.core.message._
 
 import java.util.{ Timer, TimerTask }
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 import scala.concurrent.{ ExecutionContext, Promise }
 import scala.concurrent.duration.FiniteDuration
 
 case object TimeoutException extends Exception
 
 class CallRequests[T] {
-  import collection.mutable
+  private val openRequests = new ConcurrentHashMap[SequenceId, Promise[T]]
 
-  private val openRequests = mutable.HashMap.empty[SequenceId, Promise[T]]
-
-  private val nextSeqId: () => SequenceId = {
-    var seqId = 0
-    () => { seqId += 1; seqId }
-  }
+  private val sequence = new AtomicInteger(0)
 
   def open()(implicit ctx: ExecutionContext): (SequenceId, Promise[T]) = {
     val promise = Promise[T]()
-    val seqId = nextSeqId()
-    openRequests += seqId -> promise
-    promise.future.onComplete { res =>
-      openRequests -= seqId
+    val seqId = sequence.incrementAndGet()
+    openRequests.put(seqId, promise)
+    promise.future.onComplete { _ =>
+      openRequests.remove(seqId)
     }
 
     seqId -> promise
   }
 
-  def get(seqId: SequenceId): Option[Promise[T]] = openRequests.get(seqId)
+  def get(seqId: SequenceId): Option[Promise[T]] = Option(openRequests.get(seqId))
 
   def startTimeout(promise: Promise[T], timeout: FiniteDuration)(implicit ctx: ExecutionContext): Unit = {
     val timer = new Timer
