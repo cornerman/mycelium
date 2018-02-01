@@ -20,23 +20,14 @@ class WebsocketClientWithPayload[PickleType, Payload, Event, Failure](
     val (seqId, promise) = callRequests.open()
     val request = CallRequest(seqId, path, payload)
     val pickledRequest = serializer.serialize(request)
-
-    def startTimeout(): Unit = callRequests.startTimeout(promise, requestTimeout)
-    def fail(): Unit = callRequests.drop(promise)
-
     val message = sendType match {
-      case SendType.NowOrFail =>
-        WebsocketMessage.Direct(pickledRequest, startTimeout _, fail _)
-      case SendType.WhenConnected(priority) =>
-        WebsocketMessage.Buffered(pickledRequest, startTimeout _, priority)
+      case SendType.NowOrFail => WebsocketMessage.Direct(pickledRequest, promise, requestTimeout)
+      case SendType.WhenConnected(priority) => WebsocketMessage.Buffered(pickledRequest, promise, requestTimeout, priority)
     }
 
     ws.send(message)
 
-    promise.future.failed.foreach { err =>
-      scribe.error(s"Request $seqId failed: $err")
-    }
-
+    promise.future.failed.foreach { err => scribe.error(s"Request $seqId failed: $err") }
     promise.future
   }
 

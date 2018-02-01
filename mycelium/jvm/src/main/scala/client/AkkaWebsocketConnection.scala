@@ -84,9 +84,11 @@ private[client] class SendActor[PickleType](queue: Future[SourceQueue[Message]])
     override def senderOption = if (isConnected) queue.value.flatMap(_.toOption) else None
     override def doSend(queue: SourceQueue[Message], rawMessage: PickleType) = {
       val message = builder.pack(rawMessage)
-      queue.offer(message).foreach {
-        case QueueOfferResult.Enqueued => ()
-        case res => scribe.warn(s"Websocket connection could not send message: $res")
+      queue.offer(message).map {
+        case QueueOfferResult.Enqueued => true
+        case res =>
+          scribe.warn(s"Websocket connection could not send message: $res")
+          false
       }
     }
   }

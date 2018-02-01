@@ -15,28 +15,29 @@ class JsWebsocketConnection[PickleType](implicit builder: JsMessageBuilder[Pickl
 
   private var wsOpt: Option[WebSocket] = None
   private var keepAliveTracker: Option[KeepAliveTracker] = None
+  private def rawSend(ws: WebSocket, rawMessage: PickleType): Try[Unit] = {
+    val message = builder.pack(rawMessage)
+    (message: Any) match {
+      case s: String => Try(ws.send(s))
+      case a: ArrayBuffer => Try(ws.send(a))
+      case b: Blob => Try(ws.send(b))
+    }
+  }
   private val messageSender = new WebsocketMessageSender[PickleType, WebSocket] {
     override def senderOption = wsOpt
     override def doSend(ws: WebSocket, rawMessage: PickleType) = {
       keepAliveTracker.foreach(_.acknowledgeTraffic())
-
-      val message = builder.pack(rawMessage)
-      val tried = (message: Any) match {
-        case s: String => Try(ws.send(s))
-        case a: ArrayBuffer => Try(ws.send(a))
-        case b: Blob => Try(ws.send(b))
-      }
-
-      tried.failed.foreach { t =>
-        scribe.warn(s"Websocket connection could not send message: $t")
-      }
+      val tried = rawSend(ws, rawMessage)
+      tried.failed.foreach { t => scribe.warn(s"Websocket connection could not send message: $t") }
+      Future.successful(tried.isSuccess)
     }
   }
 
   def send(value: WebsocketMessage[PickleType]): Unit = messageSender.sendOrBuffer(value)
 
   def run(location: String, wsConfig: WebsocketClientConfig, pingMessage: PickleType, listener: WebsocketListener[PickleType]): Unit = if (wsOpt.isEmpty) {
-    val keepAliveTracker = new KeepAliveTracker(wsConfig.pingInterval, () => send(WebsocketMessage.Direct(pingMessage, () => (), () => ())))
+    def sendPing(): Unit = wsOpt.foreach(rawSend(_, pingMessage))
+    val keepAliveTracker = new KeepAliveTracker(wsConfig.pingInterval, sendPing _)
     this.keepAliveTracker = Some(keepAliveTracker) //TODO should not set this here
 
     val websocket = new ReconnectingWebSocket(location, options = new ReconnectingWebsocketOptions {
