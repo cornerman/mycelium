@@ -10,6 +10,7 @@ import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.ws._
 import akka.http.scaladsl.settings.ClientConnectionSettings
 import scala.concurrent.{ExecutionContext, Future, Promise}
+import scala.util.{Success, Failure}
 
 case class AkkaWebsocketConfig(bufferSize: Int, overflowStrategy: OverflowStrategy)
 
@@ -30,9 +31,12 @@ class AkkaWebsocketConnection[PickleType](config: AkkaWebsocketConfig)(implicit 
   //TODO return result signaling closed
   def run(location: String, wsConfig: WebsocketClientConfig, pingMessage: PickleType, listener: WebsocketListener[PickleType]) = {
     val incoming = Sink.foreach[Message] { message =>
-      builder.unpack(message).foreach { //TODO we are breaking the order here, better sequence the future[m] inside the sink? foldasync?
-        case Some(value) => listener.onMessage(value)
-        case None => scribe.warn(s"Ignoring websocket message. Builder does not support message: $message")
+      builder.unpack(message).onComplete { //TODO we are breaking the order here, better sequence the future[m] inside the sink? foldasync?
+        case Success(value) => value match {
+          case Some(value) => listener.onMessage(value)
+          case None => scribe.warn(s"Ignoring websocket message. Builder does not support message ($message)")
+        }
+        case Failure(t) => scribe.warn(s"Ignoring websocket message. Builder failed to unpack message ($message): $t")
       }
     }
 

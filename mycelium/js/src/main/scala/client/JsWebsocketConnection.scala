@@ -6,7 +6,7 @@ import mycelium.client.raw._
 import org.scalajs.dom._
 import scala.scalajs.js
 import scala.scalajs.js.typedarray.ArrayBuffer
-import scala.util.Try
+import scala.util.{Try, Success, Failure}
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration.FiniteDuration
 import java.util.{Timer, TimerTask}
@@ -47,8 +47,8 @@ class JsWebsocketConnection[PickleType](implicit builder: JsMessageBuilder[Pickl
       override val debug: js.UndefOr[Boolean] = false
     })
 
-    websocket.onerror = { (e: ErrorEvent) =>
-      scribe.warn(s"Error in websocket connection: ${e.message}")
+    websocket.onerror = { (e: Event) =>
+      scribe.warn(s"Error in websocket connection: $e")
     }
 
     websocket.onopen = { (_: Event) =>
@@ -72,9 +72,12 @@ class JsWebsocketConnection[PickleType](implicit builder: JsMessageBuilder[Pickl
         case _ => Future.successful(None)
       }
 
-      value.foreach {
-        case Some(value) => listener.onMessage(value)
-        case None => scribe.warn(s"Ignoring websocket message. Builder does not support message: ${e.data}")
+      value.onComplete {
+        case Success(value) => value match {
+          case Some(value) => listener.onMessage(value)
+          case None => scribe.warn(s"Ignoring websocket message. Builder does not support message (${e.data})")
+        }
+        case Failure(t) => scribe.warn(s"Ignoring websocket message. Builder failed to unpack message (${e.data}): $t")
       }
     }
   }

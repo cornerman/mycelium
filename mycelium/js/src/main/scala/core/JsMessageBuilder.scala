@@ -44,6 +44,7 @@ object JsMessageBuilder {
     reader.onerror = _ => {
       promise.success(None)
     }
+    doRead(reader)
     promise.future
   }
 }

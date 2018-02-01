@@ -6,8 +6,6 @@ import chameleon._
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.concurrent.duration._
 
-case object DroppedMessageException extends Exception
-
 case class WebsocketClientConfig(minReconnectDelay: FiniteDuration = 60.seconds, maxReconnectDelay: FiniteDuration = 1.seconds, delayReconnectFactor: Double = 1.3, connectingTimeout: FiniteDuration = 5.seconds, pingInterval: FiniteDuration = 45.seconds)
 
 class WebsocketClientWithPayload[PickleType, Payload, Event, Failure](
@@ -19,17 +17,12 @@ class WebsocketClientWithPayload[PickleType, Payload, Event, Failure](
   deserializer: Deserializer[ServerMessage[Payload, Event, Failure], PickleType]) {
 
   def send(path: List[String], payload: Payload, sendType: SendType, requestTimeout: FiniteDuration)(implicit ec: ExecutionContext): Future[Either[Failure, Payload]] = {
-    val (id, promise) = callRequests.open()
-    val request = CallRequest(id, path, payload)
+    val (seqId, promise) = callRequests.open()
+    val request = CallRequest(seqId, path, payload)
     val pickledRequest = serializer.serialize(request)
 
-    def startTimeout(): Unit = {
-      callRequests.startTimeout(promise, requestTimeout)
-    }
-    def fail(): Unit = {
-      promise tryFailure DroppedMessageException
-      ()
-    }
+    def startTimeout(): Unit = callRequests.startTimeout(promise, requestTimeout)
+    def fail(): Unit = callRequests.drop(promise)
 
     val message = sendType match {
       case SendType.NowOrFail =>
@@ -41,7 +34,7 @@ class WebsocketClientWithPayload[PickleType, Payload, Event, Failure](
     ws.send(message)
 
     promise.future.failed.foreach { err =>
-      scribe.error(s"Request $id failed: $err")
+      scribe.error(s"Request $seqId failed: $err")
     }
 
     promise.future

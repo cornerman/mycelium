@@ -9,6 +9,7 @@ import scala.concurrent.{ ExecutionContext, Promise }
 import scala.concurrent.duration.FiniteDuration
 
 case object TimeoutException extends Exception
+case object DroppedMessageException extends Exception
 
 class CallRequests[T] {
   private val openRequests = new ConcurrentHashMap[SequenceId, Promise[T]]
@@ -27,6 +28,11 @@ class CallRequests[T] {
   }
 
   def get(seqId: SequenceId): Option[Promise[T]] = Option(openRequests.get(seqId))
+
+  def drop(promise: Promise[T]): Unit = {
+    promise tryFailure DroppedMessageException
+    ()
+  }
 
   def startTimeout(promise: Promise[T], timeout: FiniteDuration)(implicit ctx: ExecutionContext): Unit = {
     val timer = new Timer
