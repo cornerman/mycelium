@@ -14,7 +14,7 @@ object WebsocketServerFlow {
   type Type = Flow[Message, Message, NotUsed]
 
   def apply[PickleType, Payload, Event, PublishEvent, Failure, State](
-    config: ServerConfig,
+    config: WebsocketServerConfig,
     handler: RequestHandler[Payload, Event, PublishEvent, Failure, State])(implicit
     system: ActorSystem,
     serializer: Serializer[ServerMessage[Payload, Event, Failure], PickleType],

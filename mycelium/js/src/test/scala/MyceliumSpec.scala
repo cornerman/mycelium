@@ -19,14 +19,13 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
   type Failure = Int
 
   "client" in {
-    val config = ClientConfig(requestTimeout = 1 milliseconds)
-    val handler = new IncidentHandler[Event]
-    val client = WebsocketClient.withPayload[ByteBuffer, Payload, Event, Failure](new JsWebsocketConnection, config, handler)
+    val client = WebsocketClient.withPayload[ByteBuffer, Payload, Event, Failure](
+      new JsWebsocketConnection, WebsocketClientConfig(), new IncidentHandler[Event])
 
     // client.run("ws://hans")
 
-    val res = client.send("foo" :: "bar" :: Nil, "harals", SendType.NowOrFail)
-    val res2 = client.send("foo" :: "bar" :: Nil, "harals", SendType.WhenConnected)
+    val res = client.send("foo" :: "bar" :: Nil, "harals", SendType.NowOrFail, 30 seconds)
+    val res2 = client.send("foo" :: "bar" :: Nil, "harals", SendType.WhenConnected, 30 seconds)
 
     res.failed.map(_ mustEqual DroppedMessageException)
     res2.value mustEqual None

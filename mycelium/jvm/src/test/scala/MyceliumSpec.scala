@@ -35,24 +35,21 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAl
   type State = String
 
   "client" in {
-    val config = ClientConfig(requestTimeout = 30 seconds)
     val akkaConfig = AkkaWebsocketConfig(bufferSize = 100, overflowStrategy = OverflowStrategy.fail)
-
-    val handler = new IncidentHandler[Event]
-    val client = WebsocketClient.withPayload[ByteBuffer, Payload, Event, Failure](new AkkaWebsocketConnection(akkaConfig), config, handler)
+    val client = WebsocketClient.withPayload[ByteBuffer, Payload, Event, Failure](
+      new AkkaWebsocketConnection(akkaConfig), WebsocketClientConfig(), new IncidentHandler[Event])
 
     // client.run("ws://hans")
 
-    val res = client.send("foo" :: "bar" :: Nil, 1, SendType.NowOrFail)
-    val res2 = client.send("foo" :: "bar" :: Nil, 1, SendType.WhenConnected)
+    val res = client.send("foo" :: "bar" :: Nil, 1, SendType.NowOrFail, 30 seconds)
+    val res2 = client.send("foo" :: "bar" :: Nil, 1, SendType.WhenConnected, 30 seconds)
 
     res.failed.map(_ mustEqual DroppedMessageException)
     res2.value mustEqual None
   }
 
   "server" in {
-    val config = ServerConfig(bufferSize = 5, overflowStrategy = OverflowStrategy.fail)
-
+    val config = WebsocketServerConfig(bufferSize = 5, overflowStrategy = OverflowStrategy.fail)
     val handler = new SimpleStatelessRequestHandler[Payload, Event, Failure] {
       def onRequest(path: List[String], payload: Payload) = Response(Future.successful(ReturnValue(Right(payload))))
     }

@@ -4,24 +4,27 @@ import mycelium.core.message._
 import chameleon._
 
 import scala.concurrent.{ ExecutionContext, Future }
+import scala.concurrent.duration._
 
 case object DroppedMessageException extends Exception
 
+case class WebsocketClientConfig(minReconnectDelay: FiniteDuration = 60.seconds, maxReconnectDelay: FiniteDuration = 1.seconds, delayReconnectFactor: Double = 1.3, connectingTimeout: FiniteDuration = 5.seconds, pingInterval: FiniteDuration = 45.seconds)
+
 class WebsocketClientWithPayload[PickleType, Payload, Event, Failure](
-  wsConfig: WebsocketConfig,
+  wsConfig: WebsocketClientConfig,
   ws: WebsocketConnection[PickleType],
   handler: IncidentHandler[Event],
   callRequests: CallRequests[Either[Failure, Payload]])(implicit
   serializer: Serializer[ClientMessage[Payload], PickleType],
   deserializer: Deserializer[ServerMessage[Payload, Event, Failure], PickleType]) {
 
-  def send(path: List[String], payload: Payload, sendType: SendType)(implicit ec: ExecutionContext): Future[Either[Failure, Payload]] = {
+  def send(path: List[String], payload: Payload, sendType: SendType, requestTimeout: FiniteDuration)(implicit ec: ExecutionContext): Future[Either[Failure, Payload]] = {
     val (id, promise) = callRequests.open()
     val request = CallRequest(id, path, payload)
     val pickledRequest = serializer.serialize(request)
 
     def startTimeout(): Unit = {
-      callRequests.startTimeout(promise)
+      callRequests.startTimeout(promise, requestTimeout)
     }
     def fail(): Unit = {
       promise tryFailure DroppedMessageException
@@ -70,7 +73,7 @@ class WebsocketClientWithPayload[PickleType, Payload, Event, Failure](
 object WebsocketClient {
   def apply[PickleType, Event, Failure](
     connection: WebsocketConnection[PickleType],
-    config: ClientConfig,
+    config: WebsocketClientConfig,
     handler: IncidentHandler[Event])(implicit
     serializer: Serializer[ClientMessage[PickleType], PickleType],
     deserializer: Deserializer[ServerMessage[PickleType, Event, Failure], PickleType]) =
@@ -78,11 +81,11 @@ object WebsocketClient {
 
   def withPayload[PickleType, Payload, Event, Failure](
     connection: WebsocketConnection[PickleType],
-    config: ClientConfig,
+    config: WebsocketClientConfig,
     handler: IncidentHandler[Event])(implicit
     serializer: Serializer[ClientMessage[Payload], PickleType],
     deserializer: Deserializer[ServerMessage[Payload, Event, Failure], PickleType]) = {
-    val callRequests = new CallRequests[Either[Failure, Payload]](config.requestTimeout)
-    new WebsocketClientWithPayload(config.websocketConfig, connection, handler, callRequests)
+    val callRequests = new CallRequests[Either[Failure, Payload]]
+    new WebsocketClientWithPayload(config, connection, handler, callRequests)
   }
 }

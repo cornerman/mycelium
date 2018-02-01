@@ -28,7 +28,7 @@ class AkkaWebsocketConnection[PickleType](config: AkkaWebsocketConfig)(implicit 
   def send(msg: WebsocketMessage[PickleType]): Unit = sendActor ! msg
 
   //TODO return result signaling closed
-  def run(location: String, wsConfig: WebsocketConfig, pingMessage: PickleType, listener: WebsocketListener[PickleType]) = {
+  def run(location: String, wsConfig: WebsocketClientConfig, pingMessage: PickleType, listener: WebsocketListener[PickleType]) = {
     val incoming = Sink.foreach[Message] { message =>
       builder.unpack(message).foreach { //TODO we are breaking the order here, better sequence the future[m] inside the sink? foldasync?
         case Some(value) => listener.onMessage(value)

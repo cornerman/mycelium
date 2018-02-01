@@ -8,7 +8,7 @@ import scala.concurrent.duration.FiniteDuration
 
 case object TimeoutException extends Exception
 
-class CallRequests[T](timeout: FiniteDuration) {
+class CallRequests[T] {
   import collection.mutable
 
   private val openRequests = mutable.HashMap.empty[SequenceId, Promise[T]]
@@ -31,7 +31,7 @@ class CallRequests[T](timeout: FiniteDuration) {
 
   def get(seqId: SequenceId): Option[Promise[T]] = openRequests.get(seqId)
 
-  def startTimeout(promise: Promise[T])(implicit ctx: ExecutionContext): Unit = {
+  def startTimeout(promise: Promise[T], timeout: FiniteDuration)(implicit ctx: ExecutionContext): Unit = {
     val timer = new Timer
     val task = new TimerTask {
       def run(): Unit = {

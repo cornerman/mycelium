@@ -35,7 +35,7 @@ class JsWebsocketConnection[PickleType](implicit builder: JsMessageBuilder[Pickl
 
   def send(value: WebsocketMessage[PickleType]): Unit = messageSender.sendOrBuffer(value)
 
-  def run(location: String, wsConfig: WebsocketConfig, pingMessage: PickleType, listener: WebsocketListener[PickleType]): Unit = if (wsOpt.isEmpty) {
+  def run(location: String, wsConfig: WebsocketClientConfig, pingMessage: PickleType, listener: WebsocketListener[PickleType]): Unit = if (wsOpt.isEmpty) {
     val keepAliveTracker = new KeepAliveTracker(wsConfig.pingInterval, () => send(WebsocketMessage.Direct(pingMessage, () => (), () => ())))
     this.keepAliveTracker = Some(keepAliveTracker) //TODO should not set this here
 

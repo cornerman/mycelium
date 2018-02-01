@@ -5,11 +5,13 @@ import mycelium.core.message._
 import chameleon._
 
 import akka.actor.ActorSystem
+import akka.stream.OverflowStrategy
 
+case class WebsocketServerConfig(bufferSize: Int, overflowStrategy: OverflowStrategy)
 class WebsocketServer(val flow: () => WebsocketServerFlow.Type)
 object WebsocketServer {
   def apply[PickleType, Event, PublishEvent, Failure, State](
-    config: ServerConfig,
+    config: WebsocketServerConfig,
     handler: RequestHandler[PickleType, Event, PublishEvent, Failure, State])(implicit
     system: ActorSystem,
     serializer: Serializer[ServerMessage[PickleType, Event, Failure], PickleType],
@@ -18,7 +20,7 @@ object WebsocketServer {
     withPayload[PickleType, PickleType, Event, PublishEvent, Failure, State](config, handler)
 
   def withPayload[PickleType, Payload, Event, PublishEvent, Failure, State](
-    config: ServerConfig,
+    config: WebsocketServerConfig,
     handler: RequestHandler[Payload, Event, PublishEvent, Failure, State])(implicit
     system: ActorSystem,
     serializer: Serializer[ServerMessage[Payload, Event, Failure], PickleType],
