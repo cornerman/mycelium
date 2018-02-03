@@ -27,7 +27,6 @@ class WebsocketClientWithPayload[PickleType, Payload, Event, Failure](
 
     ws.send(message)
 
-    promise.future.failed.foreach { err => scribe.error(s"Request $seqId failed: $err") }
     promise.future
   }
 
