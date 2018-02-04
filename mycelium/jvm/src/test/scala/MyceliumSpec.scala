@@ -9,7 +9,7 @@ import mycelium.core.message._
 import boopickle.Default._
 import java.nio.ByteBuffer
 import chameleon._
-import chameleon.boopickle._
+import chameleon.Boopickle._
 import akka.actor.ActorSystem
 import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.stream.scaladsl._

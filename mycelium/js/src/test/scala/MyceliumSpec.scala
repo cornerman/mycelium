@@ -1,7 +1,7 @@
 package test
 
 import mycelium.client._
-import chameleon.boopickle._
+import chameleon.Boopickle._
 
 import org.scalatest._
 import boopickle.Default._
