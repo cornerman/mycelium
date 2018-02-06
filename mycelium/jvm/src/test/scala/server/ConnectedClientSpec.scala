@@ -21,9 +21,9 @@ class TestRequestHandler extends FullRequestHandler[ByteBuffer, String, String, 
   override def onRequest(client: NotifiableClient[String], state: Future[Option[String]], path: List[String], args: ByteBuffer) = {
     def deserialize[S : Pickler](ts: ByteBuffer) = Unpickle[S].fromBytes(ts)
     def serialize[S : Pickler](ts: S) = Right(Pickle.intoBytes[S](ts))
-    def value[S : Pickler](ts: S, events: Seq[String] = Seq.empty) = Future.successful(ReturnValue(serialize(ts), events))
-    def valueFut[S : Pickler](ts: Future[S], events: Seq[String] = Seq.empty) = ts.map(ts => ReturnValue(serialize(ts), events))
-    def error(ts: String, events: Seq[String] = Seq.empty) = Future.successful(ReturnValue(Left(ts), events))
+    def value[S : Pickler](ts: S, events: List[String] = Nil) = Future.successful(ReturnValue(serialize(ts), events))
+    def valueFut[S : Pickler](ts: Future[S], events: List[String] = Nil) = ts.map(ts => ReturnValue(serialize(ts), events))
+    def error(ts: String, events: List[String] = Nil) = Future.successful(ReturnValue(Left(ts), events))
 
     path match {
       case "true" :: Nil =>
@@ -32,7 +32,7 @@ class TestRequestHandler extends FullRequestHandler[ByteBuffer, String, String, 
         val str = deserialize[String](args)
         Response(state, value(str.reverse))
       case "event" :: Nil =>
-        val events = Seq("event")
+        val events = List("event")
         Response(state, value(true, events))
       case "state" :: Nil =>
         Response(state, valueFut(state))

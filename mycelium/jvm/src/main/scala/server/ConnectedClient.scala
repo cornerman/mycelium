@@ -25,7 +25,7 @@ private[mycelium] class ConnectedClient[Payload, Event, Failure, State](
 
   def connected(outgoing: ActorRef) = {
     val client = new NotifiableClient[Event](self)
-    def sendEvents(events: Seq[Event]): Unit = if (events.nonEmpty) outgoing ! Notification(events.toList)
+    def sendEvents(events: List[Event]): Unit = if (events.nonEmpty) outgoing ! Notification(events)
     def stopActor(state: Future[State], reason: DisconnectReason): Unit = {
       onClientDisconnect(client, state, reason)
       context.stop(self)

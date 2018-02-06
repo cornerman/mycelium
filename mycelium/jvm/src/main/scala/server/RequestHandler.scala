@@ -2,8 +2,8 @@ package mycelium.server
 
 import scala.concurrent.Future
 
-case class HandlerReaction[Event, State](state: Future[State], events: Future[Seq[Event]])
-case class HandlerReturnValue[Payload, Event, Failure](result: Either[Failure, Payload], events: Seq[Event])
+case class HandlerReaction[Event, State](state: Future[State], events: Future[List[Event]])
+case class HandlerReturnValue[Payload, Event, Failure](result: Either[Failure, Payload], events: List[Event])
 case class HandlerResponse[Payload, Event, Failure, State](state: Future[State], value: Future[HandlerReturnValue[Payload, Event, Failure]])
 
 trait RequestHandler[Payload, Event, Failure, State] {
@@ -23,7 +23,7 @@ trait RequestHandler[Payload, Event, Failure, State] {
   // websocket connection or the client closed the connection.
   def onClientDisconnect(client: NotifiableClient[Event], state: Future[State], reason: DisconnectReason): Unit = {}
 
-  // a request is a (path: Seq[String], args: Payload), which
+  // a request is a (path: List[String], args: Payload), which
   // needs to be mapped to a result.  if the request cannot be handled, you can
   // return an error. this is the integration point for e.g. sloth or autowire
   def onRequest(client: NotifiableClient[Event], state: Future[State], path: List[String], payload: Payload): Response
@@ -34,8 +34,8 @@ trait RequestHandler[Payload, Event, Failure, State] {
 }
 
 trait FullRequestHandler[Payload, Event, Failure, State] extends RequestHandler[Payload, Event, Failure, State] {
-  def Reaction(state: Future[State], events: Future[Seq[Event]] = Future.successful(Seq.empty)): Reaction = HandlerReaction(state, events)
-  def ReturnValue(result: Either[Failure, Payload], events: Seq[Event] = Seq.empty): ReturnValue = HandlerReturnValue(result, events)
+  def Reaction(state: Future[State], events: Future[List[Event]] = Future.successful(Nil)): Reaction = HandlerReaction(state, events)
+  def ReturnValue(result: Either[Failure, Payload], events: List[Event] = Nil): ReturnValue = HandlerReturnValue(result, events)
   def Response(state: Future[State], value: Future[ReturnValue]): Response = HandlerResponse(state, value)
 }
 
@@ -51,8 +51,8 @@ trait SimpleRequestHandler[Payload, Event, Failure, State] extends FullRequestHa
 }
 
 trait StatelessRequestHandler[Payload, Event, Failure] extends RequestHandler[Payload, Event, Failure, Nothing] {
-  def Reaction(events: Future[Seq[Event]] = Future.successful(Seq.empty)): Reaction = HandlerReaction(initialState, events)
-  def ReturnValue(result: Either[Failure, Payload], events: Seq[Event] = Seq.empty): ReturnValue = HandlerReturnValue(result, events)
+  def Reaction(events: Future[List[Event]] = Future.successful(Nil)): Reaction = HandlerReaction(initialState, events)
+  def ReturnValue(result: Either[Failure, Payload], events: List[Event] = Nil): ReturnValue = HandlerReturnValue(result, events)
   def Response(value: Future[ReturnValue]): Response = HandlerResponse(initialState, value)
 
   def onClientConnect(client: NotifiableClient[Event]): Unit = {}
