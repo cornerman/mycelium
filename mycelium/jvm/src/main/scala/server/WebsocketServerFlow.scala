@@ -13,9 +13,9 @@ import scala.util.control.NonFatal
 object WebsocketServerFlow {
   type Type = Flow[Message, Message, NotUsed]
 
-  def apply[PickleType, Payload, Event, PublishEvent, Failure, State](
+  def apply[PickleType, Payload, Event, Failure, State](
     config: WebsocketServerConfig,
-    handler: RequestHandler[Payload, Event, PublishEvent, Failure, State])(implicit
+    handler: RequestHandler[Payload, Event, Failure, State])(implicit
     system: ActorSystem,
     serializer: Serializer[ServerMessage[Payload, Event, Failure], PickleType],
     deserializer: Deserializer[ClientMessage[Payload], PickleType],

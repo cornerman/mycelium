@@ -12,7 +12,7 @@ import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.collection.mutable
 
-class TestRequestHandler extends FullRequestHandler[ByteBuffer, String, String, String, Option[String]] {
+class TestRequestHandler extends FullRequestHandler[ByteBuffer, String, String, Option[String]] {
   val clients = mutable.HashSet.empty[NotifiableClient[String]]
   val events = mutable.ArrayBuffer.empty[String]
 
@@ -48,14 +48,14 @@ class TestRequestHandler extends FullRequestHandler[ByteBuffer, String, String, 
     }
   }
 
-  override def onEvent(client: NotifiableClient[String], state: Future[Option[String]], event: String) = {
-    events += event
-    val downstreamEvents = Seq(s"${event}-ok")
+  override def onEvent(client: NotifiableClient[String], state: Future[Option[String]], newEvents: List[String]) = {
+    events ++= newEvents
+    val downstreamEvents = newEvents.map(event => s"${event}-ok")
     Reaction(state, Future.successful(downstreamEvents))
   }
 
   override def onClientConnect(client: NotifiableClient[String], state: Future[Option[String]]): Unit = {
-    client.notify("started")
+    client.notify("started" :: Nil)
     clients += client
     ()
   }

@@ -12,19 +12,19 @@ object DisconnectReason {
   case class StateFailed(failure: Throwable) extends DisconnectReason
 }
 
-class NotifiableClient[PublishEvent](actor: ActorRef) {
-  private[mycelium] case class Notify(event: PublishEvent)
-  def notify(event: PublishEvent): Unit = actor ! Notify(event)
+class NotifiableClient[Event](actor: ActorRef) {
+  private[mycelium] case class Notify(event: List[Event])
+  def notify(events: List[Event]): Unit = actor ! Notify(events)
 }
 
-private[mycelium] class ConnectedClient[Payload, Event, PublishEvent, Failure, State](
-  handler: RequestHandler[Payload, Event, PublishEvent, Failure, State]) extends Actor {
+private[mycelium] class ConnectedClient[Payload, Event, Failure, State](
+  handler: RequestHandler[Payload, Event, Failure, State]) extends Actor {
   import ConnectedClient._
   import handler._
   import context.dispatcher
 
   def connected(outgoing: ActorRef) = {
-    val client = new NotifiableClient[PublishEvent](self)
+    val client = new NotifiableClient[Event](self)
     def sendEvents(events: Seq[Event]): Unit = if (events.nonEmpty) outgoing ! Notification(events.toList)
     def stopActor(state: Future[State], reason: DisconnectReason): Unit = {
       onClientDisconnect(client, state, reason)
@@ -47,8 +47,8 @@ private[mycelium] class ConnectedClient[Payload, Event, PublishEvent, Failure, S
         }
         context.become(safeWithState(response.state))
 
-      case client.Notify(event) =>
-        val reaction = onEvent(client, state, event)
+      case client.Notify(notifyEvents) =>
+        val reaction = onEvent(client, state, notifyEvents)
         reaction.events.foreach(sendEvents)
         context.become(safeWithState(reaction.state))
 
