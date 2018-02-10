@@ -50,7 +50,7 @@ trait SimpleRequestHandler[Payload, Event, Failure, State] extends FullRequestHa
   final override def onEvent(client: NotifiableClient[Event], state: Future[State], events: List[Event]): Reaction = ???
 }
 
-trait StatelessRequestHandler[Payload, Event, Failure] extends RequestHandler[Payload, Event, Failure, Nothing] {
+trait StatelessRequestHandler[Payload, Event, Failure] extends RequestHandler[Payload, Event, Failure, Unit] {
   def Reaction(events: Future[List[Event]] = Future.successful(Nil)): Reaction = HandlerReaction(initialState, events)
   def ReturnValue(result: Either[Failure, Payload], events: List[Event] = Nil): ReturnValue = HandlerReturnValue(result, events)
   def Response(value: Future[ReturnValue]): Response = HandlerResponse(initialState, value)
@@ -60,11 +60,11 @@ trait StatelessRequestHandler[Payload, Event, Failure] extends RequestHandler[Pa
   def onRequest(client: NotifiableClient[Event], path: List[String], payload: Payload): Response
   def onEvent(client: NotifiableClient[Event], events: List[Event]): Reaction
 
-  final def initialState = Future.never
-  final override def onClientConnect(client: NotifiableClient[Event], state: Future[Nothing]): Unit = onClientConnect(client)
-  final override def onClientDisconnect(client: NotifiableClient[Event], state: Future[Nothing], reason: DisconnectReason): Unit = onClientDisconnect(client, reason)
-  final override def onRequest(client: NotifiableClient[Event], state: Future[Nothing], path: List[String], payload: Payload): Response = onRequest(client, path, payload)
-  final override def onEvent(client: NotifiableClient[Event], state: Future[Nothing], events: List[Event]): Reaction = onEvent(client, events)
+  final def initialState = Future.successful(())
+  final override def onClientConnect(client: NotifiableClient[Event], state: Future[Unit]): Unit = onClientConnect(client)
+  final override def onClientDisconnect(client: NotifiableClient[Event], state: Future[Unit], reason: DisconnectReason): Unit = onClientDisconnect(client, reason)
+  final override def onRequest(client: NotifiableClient[Event], state: Future[Unit], path: List[String], payload: Payload): Response = onRequest(client, path, payload)
+  final override def onEvent(client: NotifiableClient[Event], state: Future[Unit], events: List[Event]): Reaction = onEvent(client, events)
 }
 
 trait SimpleStatelessRequestHandler[Payload, Event, Failure] extends StatelessRequestHandler[Payload, Event, Failure] {
