@@ -12,14 +12,12 @@ import akka.http.scaladsl.settings.ClientConnectionSettings
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.{Success, Failure}
 
-case class AkkaWebsocketConfig(bufferSize: Int, overflowStrategy: OverflowStrategy)
-
-class AkkaWebsocketConnection[PickleType](config: AkkaWebsocketConfig)(implicit system: ActorSystem, materializer: ActorMaterializer, builder: AkkaMessageBuilder[PickleType]) extends WebsocketConnection[PickleType] {
+class AkkaWebsocketConnection[PickleType](bufferSize: Int, overflowStrategy: OverflowStrategy)(implicit system: ActorSystem, materializer: ActorMaterializer, builder: AkkaMessageBuilder[PickleType]) extends WebsocketConnection[PickleType] {
   import system.dispatcher
 
   private val (outgoing, outgoingMaterialized) = {
     val promise = Promise[SourceQueue[Message]]
-    val source = Source.queue[Message](config.bufferSize, config.overflowStrategy)
+    val source = Source.queue[Message](bufferSize, overflowStrategy)
                        .mapMaterializedValue { m => promise.success(m); m }
     (source, promise.future)
   }
