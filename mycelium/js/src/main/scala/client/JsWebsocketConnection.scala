@@ -8,8 +8,6 @@ import scala.scalajs.js
 import scala.scalajs.js.typedarray.ArrayBuffer
 import scala.util.{Try, Success, Failure}
 import scala.concurrent.{ExecutionContext, Future}
-import scala.concurrent.duration.FiniteDuration
-import java.util.{Timer, TimerTask}
 
 class JsWebsocketConnection[PickleType](implicit builder: JsMessageBuilder[PickleType], ec: ExecutionContext) extends WebsocketConnection[PickleType] {
 
@@ -81,17 +79,5 @@ class JsWebsocketConnection[PickleType](implicit builder: JsMessageBuilder[Pickl
         case Failure(t) => scribe.warn(s"Ignoring websocket message. Builder failed to unpack message (${e.data}): $t")
       }
     }
-  }
-}
-
-private[client] class KeepAliveTracker(pingInterval: FiniteDuration, sendPing: () => Unit) {
-  private val timer = new Timer
-  private var currentTask = Option.empty[TimerTask]
-  def acknowledgeTraffic(): Unit = {
-    currentTask.foreach(_.cancel())
-    timer.purge()
-    val task = new TimerTask { def run() = sendPing() }
-    timer.schedule(task, pingInterval.toMillis)
-    currentTask = Some(task)
   }
 }
