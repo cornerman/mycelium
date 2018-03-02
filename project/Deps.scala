@@ -19,5 +19,5 @@ object Deps {
   val okhttp = dep("com.squareup.okhttp3" % "okhttp" % "3.9.1")
   val chameleon = dep("com.github.cornerman.chameleon" %%% "chameleon" % "64cb53f")
   val boopickle = dep("io.suzaku" %%% "boopickle" % "1.2.6")
-  val scribe = dep("com.outr" %%% "scribe" % "2.1.0")
+  val scribe = dep("com.outr" %%% "scribe" % "2.2.0")
 }
