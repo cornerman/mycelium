@@ -13,12 +13,12 @@ import scala.concurrent.duration._
 import scala.collection.mutable
 
 class TestRequestHandler extends FullRequestHandler[ByteBuffer, String, String, Option[String]] {
-  val clients = mutable.HashSet.empty[NotifiableClient[String]]
+  val clients = mutable.HashSet.empty[NotifiableClient[String, Option[String]]]
   val events = mutable.ArrayBuffer.empty[String]
 
   override val initialState = Future.successful(None)
 
-  override def onRequest(client: NotifiableClient[String], state: Future[Option[String]], path: List[String], args: ByteBuffer) = {
+  override def onRequest(client: NotifiableClient[String, Option[String]], state: Future[Option[String]], path: List[String], args: ByteBuffer) = {
     def deserialize[S : Pickler](ts: ByteBuffer) = Unpickle[S].fromBytes(ts)
     def serialize[S : Pickler](ts: S) = Right(Pickle.intoBytes[S](ts))
     def value[S : Pickler](ts: S, events: List[String] = Nil) = Future.successful(ReturnValue(serialize(ts), events))
@@ -48,18 +48,18 @@ class TestRequestHandler extends FullRequestHandler[ByteBuffer, String, String, 
     }
   }
 
-  override def onEvent(client: NotifiableClient[String], state: Future[Option[String]], newEvents: List[String]) = {
+  override def onEvent(client: NotifiableClient[String, Option[String]], state: Future[Option[String]], newEvents: List[String]) = {
     events ++= newEvents
     val downstreamEvents = newEvents.map(event => s"${event}-ok")
     Reaction(state, Future.successful(downstreamEvents))
   }
 
-  override def onClientConnect(client: NotifiableClient[String], state: Future[Option[String]]): Unit = {
-    client.notify("started" :: Nil)
+  override def onClientConnect(client: NotifiableClient[String, Option[String]], state: Future[Option[String]]): Unit = {
+    client.notify(_ => Future.successful("started" :: Nil))
     clients += client
     ()
   }
-  override def onClientDisconnect(client: NotifiableClient[String], state: Future[Option[String]], reason: DisconnectReason): Unit = {
+  override def onClientDisconnect(client: NotifiableClient[String, Option[String]], state: Future[Option[String]], reason: DisconnectReason): Unit = {
     clients -= client
     ()
   }
