@@ -88,7 +88,7 @@ class ConnectedClientSpec extends TestKit(ActorSystem("ConnectedClientSpec")) wi
   }
 
   val noArg = ByteBuffer.wrap(Array.empty)
-  def expectNoMessage(): Unit = expectNoMessage(1 seconds)
+  override def expectNoMessage(): Unit = expectNoMessage(1 seconds)
 
   "unconnected" - {
     val actor = newActor()
