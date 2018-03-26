@@ -17,7 +17,7 @@ object Deps {
     val testkit = dep("com.typesafe.akka" %% "akka-testkit" % version)
   }
   val okhttp = dep("com.squareup.okhttp3" % "okhttp" % "3.9.1")
-  val chameleon = dep("com.github.cornerman.chameleon" %%% "chameleon" % "607bcb1")
-  val boopickle = dep("io.suzaku" %%% "boopickle" % "1.2.6")
-  val scribe = dep("com.outr" %%% "scribe" % "2.2.1")
+  val chameleon = dep("com.github.cornerman.chameleon" %%% "chameleon" % "1bbc84c")
+  val boopickle = dep("io.suzaku" %%% "boopickle" % "1.3.0")
+  val scribe = dep("com.outr" %%% "scribe" % "2.3.0")
 }
