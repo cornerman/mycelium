@@ -64,7 +64,6 @@ lazy val mycelium = crossProject
       Deps.akka.http.value ::
       Deps.akka.actor.value ::
       Deps.akka.stream.value ::
-      Deps.okhttp.value ::
       Deps.akka.testkit.value % Test ::
       Nil
   )
