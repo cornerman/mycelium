@@ -49,9 +49,11 @@ private[mycelium] class ConnectedClient[Payload, Event, Failure, State](
 
       case client.Notify(notifyEvents) =>
         val newState = notifyEvents(state).flatMap { events =>
-          val reaction = onEvent(client, state, events)
-          reaction.events.foreach(sendEvents)
-          reaction.state
+          if (events.nonEmpty) {
+            val reaction = onEvent(client, state, events)
+            reaction.events.foreach(sendEvents)
+            reaction.state
+          } else state
         }
         context.become(safeWithState(newState))
 
