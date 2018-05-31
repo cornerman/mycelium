@@ -6,23 +6,33 @@ import monix.execution.Scheduler
 import scala.collection.mutable
 import scala.concurrent.Future
 
+//TODO: better. we are using concurrent buffers, variables, futures and timers.
+// instead compose an observable with these properties?
 trait WebsocketMessageSender[PickleType, Sender] {
   protected def senderOption: Option[Sender]
   protected def doSend(sender: Sender, message: PickleType): Future[Boolean]
 
-  private val queue = new mutable.ArrayBuffer[WebsocketMessage.Buffered[PickleType]]
+  private val queue = new mutable.ArrayBuffer[WebsocketMessage[PickleType]]
+  private var isHandshakeDone: Boolean = false
 
-  def sendOrBuffer(message: WebsocketMessage[PickleType])(implicit scheduler: Scheduler): Unit = senderOption match {
-    case Some(sender) => sendMessage(sender, message)
-    case None => message match {
-      case message: WebsocketMessage.Direct[PickleType] => signalDroppedMessage(message)
-      case message: WebsocketMessage.Buffered[PickleType] => queue.append(message)
+  final def sendOrBuffer(message: WebsocketMessage[PickleType], sendType: SendType)(implicit ec: ExecutionContext): Unit = sendType match {
+    case SendType.WhenConnected => senderOption match {
+      case Some(sender) if isHandshakeDone => sendMessage(sender, message)
+      case _ => queue.append(message)
+    }
+    case SendType.NowOrFail => senderOption match {
+      case Some(sender) if isHandshakeDone => sendMessage(sender, message)
+      case _ => signalDroppedMessage(message)
+    }
+    case SendType.Handshake => senderOption match {
+      case Some(sender) if !isHandshakeDone => sendMessage(sender, message)
+      case _ => signalDroppedMessage(message)
     }
   }
 
-  def trySendBuffer()(implicit scheduler: Scheduler): Unit = senderOption.foreach { sender =>
-    val priorityQueue = queue.sortBy(- _.priority)
-    priorityQueue.foreach(sendMessage(sender, _))
+  final def tryConnect(handshake: Task[Unit])(implicit ec: ExecutionContext): Unit = senderOption.foreach { sender =>
+    currentHandshake = handshake.runAsync.onComplete {
+    queue.foreach(sendMessage(sender, _))
     queue.clear()
   }
 

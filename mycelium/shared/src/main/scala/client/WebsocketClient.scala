@@ -9,7 +9,7 @@ import mycelium.core.message._
 import scala.concurrent.duration._
 import scala.concurrent.Future
 
-case class WebsocketClientConfig(minReconnectDelay: FiniteDuration = 1.seconds, maxReconnectDelay: FiniteDuration = 60.seconds, delayReconnectFactor: Double = 1.3, connectingTimeout: FiniteDuration = 5.seconds, pingInterval: FiniteDuration = 45.seconds)
+case class WebsocketClientConfig(minReconnectDelay: FiniteDuration = 1.seconds, maxReconnectDelay: FiniteDuration = 60.seconds, delayReconnectFactor: Double = 1.3, connectingTimeout: FiniteDuration = 5.seconds, pingInterval: FiniteDuration = 45.seconds, handshake: Task[Unit] = Task.pure(()))
 case class WebsocketObservable(connected: Observable[Unit], disconnected: Observable[Unit])
 
 class WebsocketClientWithPayload[PickleType, Payload, Failure](
@@ -64,21 +64,19 @@ class WebsocketClientWithPayload[PickleType, Payload, Failure](
 
   val observable = WebsocketObservable(subjects.connected, subjects.disconnected)
 
-  def send(path: List[String], payload: Payload, sendType: SendType, requestTimeout: Option[FiniteDuration]): Observable[Either[Failure, Payload]] = Observable.defer {
+  def send(path: List[String], payload: Payload, requestTimeout: Option[FiniteDuration], sendType: SendType): Observable[Either[Failure, Payload]] = Observable.defer {
     val (seqId, subject) = requestMap.open()
     val request = CallRequest(seqId, path, payload)
     val pickledRequest = serializer.serialize(request)
-    val message = sendType match {
-      case SendType.NowOrFail => WebsocketMessage.Direct(pickledRequest, subject, requestTimeout)
-      case SendType.WhenConnected(priority) => WebsocketMessage.Buffered(pickledRequest, subject, requestTimeout, priority)
-    }
+    val message = WebsocketMessage(pickledRequest, promise, requestTimeout)
 
-    ws.send(message)
+    ws.send(message, sendType)
 
     subject
   }
 
   def run(location: String): Unit = ws.run(location, wsConfig, serializer.serialize(Ping), new WebsocketListener[PickleType] {
+    def handshake() = ???
     def onConnect() = {
       val _ = subjects.connected.onNext(())
     }

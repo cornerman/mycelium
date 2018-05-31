@@ -33,7 +33,7 @@ object WebsocketServerFlow {
               case Some(m) => deserializer.deserialize(m).left.map(t => s"Deserializer failed: $t")
               case None => Left(s"Builder does not support message: $m")
             }
-            .recover { case NonFatal(t) => Left(s"Ignoring incoming websocket message. Builder threw exception: $t") }
+            .recover { case NonFatal(t) => Left(s"Builder threw exception: $t") }
       }.mapConcat {
         case Right(msg) => msg :: Nil
         case Left(err) =>
