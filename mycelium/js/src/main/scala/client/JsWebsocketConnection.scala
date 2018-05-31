@@ -31,7 +31,7 @@ class JsWebsocketConnection[PickleType](implicit builder: JsMessageBuilder[Pickl
     }
   }
 
-  def send(value: WebsocketMessage[PickleType]): Unit = messageSender.sendOrBuffer(value)
+  def send(value: WebsocketMessage[PickleType], sendType: SendType): Unit = messageSender.sendOrBuffer(value, sendType)
 
   def run(location: String, wsConfig: WebsocketClientConfig, pingMessage: PickleType, listener: WebsocketListener[PickleType]): Unit = if (wsOpt.isEmpty) {
     def sendPing(): Unit = wsOpt.foreach(rawSend(_, pingMessage))
@@ -51,9 +51,9 @@ class JsWebsocketConnection[PickleType](implicit builder: JsMessageBuilder[Pickl
     }
 
     websocket.onopen = { (_: Event) =>
-      listener.onConnect()
       wsOpt = Option(websocket)
-      messageSender.trySendBuffer()
+      messageSender.tryConnect(listener.handshake())
+      listener.onConnect()
     }
 
     websocket.onclose = { (_: Event) =>

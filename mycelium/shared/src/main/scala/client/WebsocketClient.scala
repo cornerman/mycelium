@@ -16,21 +16,19 @@ class WebsocketClientWithPayload[PickleType, Payload, Event, Failure](
   serializer: Serializer[ClientMessage[Payload], PickleType],
   deserializer: Deserializer[ServerMessage[Payload, Event, Failure], PickleType]) {
 
-  def send(path: List[String], payload: Payload, sendType: SendType, requestTimeout: FiniteDuration)(implicit ec: ExecutionContext): Future[Either[Failure, Payload]] = {
+  def send(path: List[String], payload: Payload, requestTimeout: FiniteDuration, sendType: SendType)(implicit ec: ExecutionContext): Future[Either[Failure, Payload]] = {
     val (seqId, promise) = requestMap.open()
     val request = CallRequest(seqId, path, payload)
     val pickledRequest = serializer.serialize(request)
-    val message = sendType match {
-      case SendType.NowOrFail => WebsocketMessage.Direct(pickledRequest, promise, requestTimeout)
-      case SendType.WhenConnected(priority) => WebsocketMessage.Buffered(pickledRequest, promise, requestTimeout, priority)
-    }
+    val message = WebsocketMessage(pickledRequest, promise, requestTimeout)
 
-    ws.send(message)
+    ws.send(message, sendType)
 
     promise.future
   }
 
   def run(location: String): Unit = ws.run(location, wsConfig, serializer.serialize(Ping()), new WebsocketListener[PickleType] {
+    def handshake() = handler.handshake()
     def onConnect() = handler.onConnect()
     def onClose() = handler.onClose()
     def onMessage(msg: PickleType): Unit = {

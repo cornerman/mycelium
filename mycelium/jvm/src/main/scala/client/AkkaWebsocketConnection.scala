@@ -9,10 +9,10 @@ import akka.stream.scaladsl._
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.ws._
 import akka.http.scaladsl.settings.ClientConnectionSettings
-import scala.concurrent.{ExecutionContext, Future, Promise}
+import scala.concurrent.Promise
 import scala.util.{Success, Failure}
 
-class AkkaWebsocketConnection[PickleType](bufferSize: Int, overflowStrategy: OverflowStrategy)(implicit system: ActorSystem, materializer: ActorMaterializer, builder: AkkaMessageBuilder[PickleType]) extends WebsocketConnection[PickleType] {
+class AkkaWebsocketConnection[PickleType](bufferSize: Int, overflowStrategy: OverflowStrategy)(implicit system: ActorSystem, materializer: ActorMaterializer, builder: AkkaMessageBuilder[PickleType]) extends WebsocketConnection[PickleType] { wsConn =>
   import system.dispatcher
 
   private val (outgoing, outgoingMaterialized) = {
@@ -22,9 +22,34 @@ class AkkaWebsocketConnection[PickleType](bufferSize: Int, overflowStrategy: Ove
     (source, promise.future)
   }
 
-  private val sendActor = system.actorOf(Props(new SendActor(outgoingMaterialized)))
+  private var isConnected = false
+  private val messageSender = new WebsocketMessageSender[PickleType, SourceQueue[Message]] {
+    override def senderOption = if (isConnected) outgoingMaterialized.value.flatMap(_.toOption) else None
+    override def doSend(queue: SourceQueue[Message], rawMessage: PickleType) = {
+      val message = builder.pack(rawMessage)
+      queue.offer(message).map {
+        case QueueOfferResult.Enqueued => true
+        case res =>
+          scribe.warn(s"Websocket connection could not send message: $res")
+          false
+      }
+    }
+  }
 
-  def send(msg: WebsocketMessage[PickleType]): Unit = sendActor ! msg
+  private def connect(listener: WebsocketListener[PickleType]): Unit = synchronized {
+    isConnected = true
+    messageSender.tryConnect(listener.handshake())
+    listener.onConnect()
+  }
+
+  private def disconnect(listener: WebsocketListener[PickleType]): Unit = synchronized {
+    isConnected = false
+    listener.onClose()
+  }
+
+  def send(message: WebsocketMessage[PickleType], sendType: SendType): Unit = synchronized {
+    messageSender.sendOrBuffer(message, sendType)
+  }
 
   //TODO return result signaling closed
   def run(location: String, wsConfig: WebsocketClientConfig, pingMessage: PickleType, listener: WebsocketListener[PickleType]) = {
@@ -45,8 +70,7 @@ class AkkaWebsocketConnection[PickleType](bufferSize: Int, overflowStrategy: Ove
           upgrade.foreach { upgrade =>
             if (upgrade.response.status == StatusCodes.SwitchingProtocols) {
               outgoingMaterialized.foreach { _ => // TODO: need to wait for materialized queue, as actor depends on it...
-                listener.onConnect()
-                sendActor ! SendActor.Connected
+                connect(listener)
               }
             }
           }
@@ -54,8 +78,7 @@ class AkkaWebsocketConnection[PickleType](bufferSize: Int, overflowStrategy: Ove
         }
         .mapError { case t =>
           scribe.warn(s"Error in websocket connection: $t")
-          sendActor ! SendActor.Closed
-          listener.onClose()
+          disconnect(listener)
           t
         }
     }
@@ -71,37 +94,4 @@ class AkkaWebsocketConnection[PickleType](bufferSize: Int, overflowStrategy: Ove
       scribe.error(s"Websocket connection finally closed: $res")
     }
   }
-}
-
-//TODO future source is dangerous as it might complete before we receive a Connected message
-private[client] class SendActor[PickleType](queue: Future[SourceQueue[Message]])(implicit ec: ExecutionContext, builder: AkkaMessageBuilder[PickleType]) extends Actor {
-  import SendActor._
-
-  private var isConnected = false
-  private val messageSender = new WebsocketMessageSender[PickleType, SourceQueue[Message]] {
-    override def senderOption = if (isConnected) queue.value.flatMap(_.toOption) else None
-    override def doSend(queue: SourceQueue[Message], rawMessage: PickleType) = {
-      val message = builder.pack(rawMessage)
-      queue.offer(message).map {
-        case QueueOfferResult.Enqueued => true
-        case res =>
-          scribe.warn(s"Websocket connection could not send message: $res")
-          false
-      }
-    }
-  }
-
-  def receive = {
-    case Connected =>
-      isConnected = true
-      messageSender.trySendBuffer()
-    case Closed =>
-      isConnected = false
-    case message: WebsocketMessage[PickleType] =>
-      messageSender.sendOrBuffer(message)
-  }
-}
-private[client] object SendActor {
-  case object Connected
-  case object Closed
 }
