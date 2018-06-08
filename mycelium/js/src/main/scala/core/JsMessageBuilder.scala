@@ -1,11 +1,13 @@
 package mycelium.core
 
-import org.scalajs.dom.{Event,UIEvent, FileReader, Blob}
-import scala.scalajs.js.|
-import scala.scalajs.js.typedarray._, TypedArrayBufferOps._
-
 import java.nio.ByteBuffer
-import scala.concurrent.{Promise, Future}
+
+import org.scalajs.dom.{Blob, Event, FileReader, UIEvent}
+
+import scala.concurrent.{Future, Promise}
+import scala.scalajs.js.typedarray.TypedArrayBufferOps._
+import scala.scalajs.js.typedarray._
+import scala.scalajs.js.|
 
 trait JsMessageBuilder[PickleType] {
   import JsMessageBuilder._

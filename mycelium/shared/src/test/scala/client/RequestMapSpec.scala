@@ -2,8 +2,11 @@ package mycelium.client
 
 import org.scalatest._
 
+import scala.concurrent.ExecutionContext
+
 class RequestMapSpec extends AsyncFreeSpec with MustMatchers {
-  implicit override def executionContext = scala.concurrent.ExecutionContext.Implicits.global
+  import monix.execution.Scheduler.Implicits.global
+  override def executionContext: ExecutionContext = implicitly
 
   "open requests" - {
     "unique sequence ids" in {
@@ -24,11 +27,12 @@ class RequestMapSpec extends AsyncFreeSpec with MustMatchers {
       requests.get(1) mustEqual None
     }
 
-    "usable promise" in {
+    "usable subject" in {
       val requests = new RequestMap[Int]
-      val (_, promise) = requests.open()
-      promise success 1
-      promise.future.map(_ mustEqual 1)
+      val (_, subject) = requests.open()
+      subject.onNext(1)
+      subject.onComplete()
+      subject.lastL.runAsync.map(_ mustEqual 1)
     }
   }
 }
