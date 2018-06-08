@@ -14,9 +14,11 @@ object DisconnectReason {
   case class StateFailed(failure: Throwable) extends DisconnectReason
 }
 
-class NotifiableClient[Event, State](actor: ActorRef) {
-  private[mycelium] case class Notify(event: Future[State] => Future[List[Event]])
+class NotifiableClient[Event, State](actor: ActorRef, downstreamActor: ActorRef) {
+  //TODO: get rid on event function
+  private[mycelium] case class Notify(eventsf: Future[State] => Future[List[Event]])
   def notify(eventsf: Future[State] => Future[List[Event]]): Unit = actor ! Notify(eventsf)
+  def notify(events: List[Event]): Unit = if (events.nonEmpty) downstreamActor ! Notification(events)
 }
 
 private[mycelium] class ConnectedClient[Payload, Event, Failure, State](
@@ -25,7 +27,7 @@ private[mycelium] class ConnectedClient[Payload, Event, Failure, State](
   import handler._
 
   def connected(outgoing: ActorRef) = {
-    val client = new NotifiableClient[Event,State](self)
+    val client = new NotifiableClient[Event,State](self, outgoing)
     def sendEvents(events: List[Event]): Unit = if (events.nonEmpty) outgoing ! Notification(events)
     def stopActor(state: Future[State], reason: DisconnectReason): Unit = {
       onClientDisconnect(client, state, reason)

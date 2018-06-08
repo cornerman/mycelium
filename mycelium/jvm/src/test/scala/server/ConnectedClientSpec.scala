@@ -60,6 +60,8 @@ class TestRequestHandler extends FullRequestHandler[ByteBuffer, String, String, 
   }
 
   override def onClientConnect(client: NotifiableClient[String, Option[String]], state: Future[Option[String]]): Unit = {
+    client.notify(List("started:direct"))
+    client.notify(_ => Future.successful(List("started:reaction")))
     clients += client
     ()
   }
@@ -76,11 +78,15 @@ class ConnectedClientSpec extends TestKit(ActorSystem("ConnectedClientSpec")) wi
   def newActor(handler: TestRequestHandler = requestHandler): ActorRef = TestActorRef(new ConnectedClient(handler))
   def connectActor(actor: ActorRef) = {
     actor ! ConnectedClient.Connect(self)
-    expectNoMessage(0.2 seconds)
   }
   def connectedActor(handler: TestRequestHandler = requestHandler): ActorRef = {
     val actor = newActor(handler)
     connectActor(actor)
+    expectMsgAllOf(
+      1 seconds,
+      Notification(List("started:direct")),
+      Notification(List("started:reaction-ok")))
+
     handler.clients.size mustEqual 1
     actor
   }
