@@ -44,12 +44,20 @@ private[mycelium] class ConnectedClient[Payload, Event, Failure, State](
         val response = onRequest(client, state, path, args)
         response.value match {
           case EventualResult.Single(future) =>
-            future.onComplete {
-              case Success(value) =>
+            future.foreach {value =>
                 outgoing ! SingleResponse(seqId, value.result)
                 sendEvents(value.events)
-              case Failure(t) => outgoing ! ErrorResponse(seqId, t.getMessage)
             }
+            // future.onComplete {
+            //   case Success(value) =>
+            //     outgoing ! SingleResponse(seqId, value.result)
+            //     sendEvents(value.events)
+            //   case Failure(t) => //outgoing ! ErrorResponse(seqId, t.getMessage)
+            // }
+            // future.onComplete { _.foreach{ value =>
+            //     outgoing ! SingleResponse(seqId, value.result)
+            //     sendEvents(value.events)
+            // }}
           case EventualResult.Stream(observable) =>
             observable.foreach { value =>
               outgoing ! StreamResponse(seqId, value.result)
