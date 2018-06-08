@@ -1,19 +1,19 @@
 package mycelium.client
 
-import mycelium.core.AkkaMessageBuilder
-
-import akka.actor._
+import akka.actor.{Actor, ActorSystem, Props}
 import akka.http.scaladsl.Http
-import akka.stream.{ ActorMaterializer, OverflowStrategy, QueueOfferResult }
-import akka.stream.scaladsl._
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.ws._
 import akka.http.scaladsl.settings.ClientConnectionSettings
-import scala.concurrent.{ExecutionContext, Future, Promise}
-import scala.util.{Success, Failure}
+import akka.stream.scaladsl._
+import akka.stream.{ActorMaterializer, OverflowStrategy, QueueOfferResult}
+import monix.execution.Scheduler
+import mycelium.core.AkkaMessageBuilder
 
-class AkkaWebsocketConnection[PickleType](bufferSize: Int, overflowStrategy: OverflowStrategy)(implicit system: ActorSystem, materializer: ActorMaterializer, builder: AkkaMessageBuilder[PickleType]) extends WebsocketConnection[PickleType] {
-  import system.dispatcher
+import scala.concurrent.{Future, Promise}
+import scala.util.{Failure, Success}
+
+class AkkaWebsocketConnection[PickleType](bufferSize: Int, overflowStrategy: OverflowStrategy)(implicit system: ActorSystem, scheduler: Scheduler, materializer: ActorMaterializer, builder: AkkaMessageBuilder[PickleType]) extends WebsocketConnection[PickleType] {
 
   private val (outgoing, outgoingMaterialized) = {
     val promise = Promise[SourceQueue[Message]]
@@ -74,7 +74,7 @@ class AkkaWebsocketConnection[PickleType](bufferSize: Int, overflowStrategy: Ove
 }
 
 //TODO future source is dangerous as it might complete before we receive a Connected message
-private[client] class SendActor[PickleType](queue: Future[SourceQueue[Message]])(implicit ec: ExecutionContext, builder: AkkaMessageBuilder[PickleType]) extends Actor {
+private[client] class SendActor[PickleType](queue: Future[SourceQueue[Message]])(implicit scheduler: Scheduler, builder: AkkaMessageBuilder[PickleType]) extends Actor {
   import SendActor._
 
   private var isConnected = false

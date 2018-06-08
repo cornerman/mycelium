@@ -1,6 +1,5 @@
-import sbt._
-import Keys._
 import org.portablescala.sbtplatformdeps.PlatformDepsPlugin.autoImport._
+import sbt._
 
 object Deps {
   import Def.{setting => dep}
@@ -18,5 +17,6 @@ object Deps {
   }
   val chameleon = dep("com.github.cornerman.chameleon" %%% "chameleon" % "cb9b1b4")
   val boopickle = dep("io.suzaku" %%% "boopickle" % "1.3.0")
-  val scribe = dep("com.outr" %%% "scribe" % "2.4.0")
+  val scribe = dep("com.outr" %%% "scribe" % "2.5.0")
+  val monix = dep("io.monix" %%% "monix" % "3.0.0-RC1")
 }

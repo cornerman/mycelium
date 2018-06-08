@@ -1,10 +1,18 @@
 package mycelium.server
 
+import monix.reactive.Observable
+
 import scala.concurrent.Future
+
+sealed trait EventualResult[T] extends Any
+object EventualResult {
+  case class Single[T](future: Future[T]) extends AnyVal with EventualResult[T]
+  case class Stream[T](observable: Observable[T]) extends AnyVal with EventualResult[T]
+}
 
 case class HandlerReaction[Event, State](state: Future[State], events: Future[List[Event]])
 case class HandlerReturnValue[Payload, Event, Failure](result: Either[Failure, Payload], events: List[Event])
-case class HandlerResponse[Payload, Event, Failure, State](state: Future[State], value: Future[HandlerReturnValue[Payload, Event, Failure]])
+case class HandlerResponse[Payload, Event, Failure, State](state: Future[State], value: EventualResult[HandlerReturnValue[Payload, Event, Failure]])
 
 trait RequestHandler[Payload, Event, Failure, State] {
   type Reaction = HandlerReaction[Event, State]
@@ -36,10 +44,11 @@ trait RequestHandler[Payload, Event, Failure, State] {
 trait FullRequestHandler[Payload, Event, Failure, State] extends RequestHandler[Payload, Event, Failure, State] {
   def Reaction(state: Future[State], events: Future[List[Event]] = Future.successful(Nil)): Reaction = HandlerReaction(state, events)
   def ReturnValue(result: Either[Failure, Payload], events: List[Event] = Nil): ReturnValue = HandlerReturnValue(result, events)
-  def Response(state: Future[State], value: Future[ReturnValue]): Response = HandlerResponse(state, value)
+  def Response(state: Future[State], value: Future[ReturnValue]): Response = HandlerResponse(state, EventualResult.Single(value))
+  def Response(state: Future[State], value: Observable[ReturnValue]): Response = HandlerResponse(state, EventualResult.Stream(value))
 }
 
-trait SimpleRequestHandler[Payload, Event, Failure, State] extends FullRequestHandler[Payload, Event, Failure, State] {
+trait SimpleRequestHandler[Payload, Event, Failure, State] extends RequestHandler[Payload, Event, Failure, State] {
   def onClientConnect(state: Future[State]): Unit = {}
   def onClientDisconnect(state: Future[State], reason: DisconnectReason): Unit = {}
   def onRequest(state: Future[State], path: List[String], payload: Payload): Response
@@ -47,13 +56,14 @@ trait SimpleRequestHandler[Payload, Event, Failure, State] extends FullRequestHa
   final override def onClientConnect(client: NotifiableClient[Event, State], state: Future[State]): Unit = onClientConnect(state)
   final override def onClientDisconnect(client: NotifiableClient[Event, State], state: Future[State], reason: DisconnectReason): Unit = onClientDisconnect(state, reason)
   final override def onRequest(client: NotifiableClient[Event, State], state: Future[State], path: List[String], payload: Payload): Response = onRequest(state, path, payload)
-  final override def onEvent(client: NotifiableClient[Event, State], state: Future[State], events: List[Event]): Reaction = ???
+  final override def onEvent(client: NotifiableClient[Event, State], state: Future[State], events: List[Event]): Reaction = ??? // can never be called
 }
 
 trait StatelessRequestHandler[Payload, Event, Failure] extends RequestHandler[Payload, Event, Failure, Unit] {
   def Reaction(events: Future[List[Event]] = Future.successful(Nil)): Reaction = HandlerReaction(initialState, events)
   def ReturnValue(result: Either[Failure, Payload], events: List[Event] = Nil): ReturnValue = HandlerReturnValue(result, events)
-  def Response(value: Future[ReturnValue]): Response = HandlerResponse(initialState, value)
+  def Response(value: Future[ReturnValue]): Response = HandlerResponse(initialState, EventualResult.Single(value))
+  def Response(value: Observable[ReturnValue]): Response = HandlerResponse(initialState, EventualResult.Stream(value))
 
   def onClientConnect(client: NotifiableClient[Event, Unit]): Unit = {}
   def onClientDisconnect(client: NotifiableClient[Event, Unit], reason: DisconnectReason): Unit = {}

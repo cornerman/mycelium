@@ -1,23 +1,25 @@
 package mycelium.client
 
-import mycelium.core.message._
-
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
-import scala.concurrent.{ ExecutionContext, Promise }
+
+import monix.execution.Scheduler
+import monix.reactive.Observer
+import monix.reactive.subjects.{ReplaySubject, Subject}
+import mycelium.core.message._
 
 class RequestMap[T] {
-  private val openRequests = new ConcurrentHashMap[SequenceId, Promise[T]]
+  private val openRequests = new ConcurrentHashMap[SequenceId, Observer[T]]
   private val idSequence = new AtomicInteger(0)
 
-  def open()(implicit ctx: ExecutionContext): (SequenceId, Promise[T]) = {
-    val promise = Promise[T]()
+  def open()(implicit scheduler: Scheduler): (SequenceId, Subject[T,T]) = {
+    val subject = ReplaySubject[T]()
     val seqId = idSequence.incrementAndGet()
-    openRequests.put(seqId, promise)
-    promise.future.onComplete { _ => openRequests.remove(seqId) }
+    openRequests.put(seqId, subject)
+    subject.completedL.runAsync.onComplete { _ => openRequests.remove(seqId) }
 
-    seqId -> promise
+    seqId -> subject
   }
 
-  def get(seqId: SequenceId): Option[Promise[T]] = Option(openRequests.get(seqId))
+  def get(seqId: SequenceId): Option[Observer[T]] = Option(openRequests.get(seqId))
 }

@@ -1,9 +1,11 @@
 package mycelium.server
 
-import akka.actor._
+import akka.actor.{Actor, ActorRef}
+import monix.execution.{Scheduler => MonixScheduler}
 import mycelium.core.message._
 
 import scala.concurrent.Future
+import scala.util.{Failure, Success}
 
 sealed trait DisconnectReason
 object DisconnectReason {
@@ -18,10 +20,9 @@ class NotifiableClient[Event, State](actor: ActorRef) {
 }
 
 private[mycelium] class ConnectedClient[Payload, Event, Failure, State](
-  handler: RequestHandler[Payload, Event, Failure, State]) extends Actor {
+  handler: RequestHandler[Payload, Event, Failure, State])(implicit scheduler: MonixScheduler) extends Actor {
   import ConnectedClient._
   import handler._
-  import context.dispatcher
 
   def connected(outgoing: ActorRef) = {
     val client = new NotifiableClient[Event,State](self)
@@ -41,9 +42,24 @@ private[mycelium] class ConnectedClient[Payload, Event, Failure, State](
 
       case CallRequest(seqId, path, args: Payload@unchecked) =>
         val response = onRequest(client, state, path, args)
-        response.value.foreach { value =>
-          outgoing ! CallResponse(seqId, value.result)
-          sendEvents(value.events)
+        response.value match {
+          case EventualResult.Single(future) =>
+            future.onComplete {
+              case Success(value) =>
+                outgoing ! SingleResponse(seqId, value.result)
+                sendEvents(value.events)
+              case Failure(t) => outgoing ! ErrorResponse(seqId, t.getMessage)
+            }
+          case EventualResult.Stream(observable) =>
+            observable.foreach { value =>
+              outgoing ! StreamResponse(seqId, value.result)
+              sendEvents(value.events)
+            }
+            observable.completedL.runAsync.onComplete {
+              case Success(_) => outgoing ! StreamCloseResponse(seqId)
+              case Failure(t) => outgoing ! ErrorResponse(seqId, t.getMessage)
+
+            }
         }
         context.become(safeWithState(response.state))
 

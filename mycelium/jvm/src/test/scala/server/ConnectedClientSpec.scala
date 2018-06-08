@@ -1,16 +1,18 @@
 package mycelium.server
 
-import akka.actor._
-import akka.testkit.{ ImplicitSender, TestActorRef, TestKit }
-import boopickle.Default._
 import java.nio.ByteBuffer
-import org.scalatest._
-import mycelium.core.message._
 
+import akka.actor._
+import akka.testkit.{ImplicitSender, TestActorRef, TestKit}
+import boopickle.Default._
+import mycelium.core.message._
+import org.scalatest._
+import monix.reactive.Observable
+
+import scala.collection.mutable
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.concurrent.duration._
-import scala.collection.mutable
 
 class TestRequestHandler extends FullRequestHandler[ByteBuffer, String, String, Option[String]] {
   val clients = mutable.HashSet.empty[NotifiableClient[String, Option[String]]]
@@ -21,6 +23,7 @@ class TestRequestHandler extends FullRequestHandler[ByteBuffer, String, String, 
   override def onRequest(client: NotifiableClient[String, Option[String]], state: Future[Option[String]], path: List[String], args: ByteBuffer) = {
     def deserialize[S : Pickler](ts: ByteBuffer) = Unpickle[S].fromBytes(ts)
     def serialize[S : Pickler](ts: S) = Right(Pickle.intoBytes[S](ts))
+    def streamValues[S : Pickler](ts: List[S], events: List[String] = Nil) = Observable.fromIterable(ts.map(ts => ReturnValue(serialize(ts), events)))
     def value[S : Pickler](ts: S, events: List[String] = Nil) = Future.successful(ReturnValue(serialize(ts), events))
     def valueFut[S : Pickler](ts: Future[S], events: List[String] = Nil) = ts.map(ts => ReturnValue(serialize(ts), events))
     def error(ts: String, events: List[String] = Nil) = Future.successful(ReturnValue(Left(ts), events))
@@ -34,13 +37,15 @@ class TestRequestHandler extends FullRequestHandler[ByteBuffer, String, String, 
       case "event" :: Nil =>
         val events = List("event")
         Response(state, value(true, events))
+      case "stream" :: Nil =>
+        Response(state, streamValues(4 :: 2 :: 0 :: Nil))
       case "state" :: Nil =>
         Response(state, valueFut(state))
       case "state" :: "change" :: Nil =>
         val otherUser = Future.successful(Option("anon"))
         Response(otherUser, value(true))
       case "state" :: "fail" :: Nil =>
-        val failure = Future.failed(new Exception("minus"))
+        val failure = Future.failed(new Exception("failed-state"))
         Response(failure, value(true))
       case "broken" :: Nil =>
         Response(state, error("an error"))
@@ -55,7 +60,6 @@ class TestRequestHandler extends FullRequestHandler[ByteBuffer, String, String, 
   }
 
   override def onClientConnect(client: NotifiableClient[String, Option[String]], state: Future[Option[String]]): Unit = {
-    client.notify(_ => Future.successful("started" :: Nil))
     clients += client
     ()
   }
@@ -66,17 +70,18 @@ class TestRequestHandler extends FullRequestHandler[ByteBuffer, String, String, 
 }
 
 class ConnectedClientSpec extends TestKit(ActorSystem("ConnectedClientSpec")) with ImplicitSender with FreeSpecLike with MustMatchers {
+  import monix.execution.Scheduler.Implicits.global
 
   def requestHandler = new TestRequestHandler
   def newActor(handler: TestRequestHandler = requestHandler): ActorRef = TestActorRef(new ConnectedClient(handler))
-  def connectActor(actor: ActorRef, shouldConnect: Boolean = true) = {
+  def connectActor(actor: ActorRef) = {
     actor ! ConnectedClient.Connect(self)
-    if (shouldConnect) expectMsg(Notification(List("started-ok")))
-    else expectNoMessage()
+    expectNoMessage(0.2 seconds)
   }
   def connectedActor(handler: TestRequestHandler = requestHandler): ActorRef = {
     val actor = newActor(handler)
     connectActor(actor)
+    handler.clients.size mustEqual 1
     actor
   }
 
@@ -105,7 +110,7 @@ class ConnectedClientSpec extends TestKit(ActorSystem("ConnectedClientSpec")) wi
 
     "stop" in {
       actor ! ConnectedClient.Stop
-      connectActor(actor, shouldConnect = false)
+      connectActor(actor)
       actor ! Ping()
       expectNoMessage()
     }
@@ -121,12 +126,12 @@ class ConnectedClientSpec extends TestKit(ActorSystem("ConnectedClientSpec")) wi
   "call request" - {
     "invalid path" in connectedActor { actor =>
       actor ! CallRequest(2, List("invalid", "path"), noArg)
-      expectMsg(CallResponse(2, Left("path not found")))
+      expectMsg(SingleResponse(2, Left("path not found")))
     }
 
     "exception in api" in connectedActor { actor =>
       actor ! CallRequest(2, List("broken"), noArg)
-      expectMsg(CallResponse(2, Left("an error")))
+      expectMsg(SingleResponse(2, Left("an error")))
     }
 
     "call api" in connectedActor { actor =>
@@ -134,7 +139,21 @@ class ConnectedClientSpec extends TestKit(ActorSystem("ConnectedClientSpec")) wi
       actor ! CallRequest(2, List("api"), arg)
 
       val pickledResponse = Pickle.intoBytes[String]("snah")
-      expectMsg(CallResponse(2, Right(pickledResponse)))
+      expectMsg(SingleResponse(2, Right(pickledResponse)))
+    }
+
+    "stream api" in connectedActor { actor =>
+      actor ! CallRequest(1, List("stream"), noArg)
+
+      val pickledResponse1 = Pickle.intoBytes[Int](4)
+      val pickledResponse2 = Pickle.intoBytes[Int](2)
+      val pickledResponse3 = Pickle.intoBytes[Int](0)
+      expectMsgAllOf(
+        1 seconds,
+        StreamResponse(1, Right(pickledResponse1)),
+        StreamResponse(1, Right(pickledResponse2)),
+        StreamResponse(1, Right(pickledResponse3)),
+        StreamCloseResponse(1))
     }
 
     "switch state" in connectedActor { actor =>
@@ -147,9 +166,9 @@ class ConnectedClientSpec extends TestKit(ActorSystem("ConnectedClientSpec")) wi
       val pickledResponse3 = Pickle.intoBytes[Option[String]](Option("anon"))
       expectMsgAllOf(
         1 seconds,
-        CallResponse(1, Right(pickledResponse1)),
-        CallResponse(2, Right(pickledResponse2)),
-        CallResponse(3, Right(pickledResponse3)))
+        SingleResponse(1, Right(pickledResponse1)),
+        SingleResponse(2, Right(pickledResponse2)),
+        SingleResponse(3, Right(pickledResponse3)))
     }
 
     "failed state stops actor" in connectedActor { (actor, handler) =>
@@ -163,9 +182,16 @@ class ConnectedClientSpec extends TestKit(ActorSystem("ConnectedClientSpec")) wi
       val pickledResponse1 = Pickle.intoBytes[Option[String]](None)
       val pickledResponse2 = Pickle.intoBytes[Boolean](true)
       expectMsgAllOf(
-        1 seconds,
-        CallResponse(1, Right(pickledResponse1)),
-        CallResponse(2, Right(pickledResponse2)))
+        2 seconds,
+        SingleResponse(1, Right(pickledResponse1)),
+        SingleResponse(2, Right(pickledResponse2)),
+        SingleResponse(3, Right(pickledResponse2)),
+        ErrorResponse(4, "failed-state"))
+
+      actor ! CallRequest(3, List("true"), noArg)
+      actor ! CallRequest(4, List("state"), noArg)
+
+      expectNoMessage()
 
       handler.clients.size mustEqual 0
     }
@@ -178,7 +204,7 @@ class ConnectedClientSpec extends TestKit(ActorSystem("ConnectedClientSpec")) wi
       expectMsgAllOf(
         1 seconds,
         Notification(List("event")),
-        CallResponse(2, Right(pickledResponse)))
+        SingleResponse(2, Right(pickledResponse)))
     }
   }
 

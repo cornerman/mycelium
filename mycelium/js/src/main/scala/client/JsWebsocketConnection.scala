@@ -1,15 +1,16 @@
 package mycelium.client
 
-import mycelium.core.JsMessageBuilder
+import monix.execution.Scheduler
 import mycelium.client.raw._
-
+import mycelium.core.JsMessageBuilder
 import org.scalajs.dom._
+
+import scala.concurrent.Future
 import scala.scalajs.js
 import scala.scalajs.js.typedarray.ArrayBuffer
-import scala.util.{Try, Success, Failure}
-import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Failure, Success, Try}
 
-class JsWebsocketConnection[PickleType](implicit builder: JsMessageBuilder[PickleType], ec: ExecutionContext) extends WebsocketConnection[PickleType] {
+class JsWebsocketConnection[PickleType](implicit builder: JsMessageBuilder[PickleType], scheduler: Scheduler) extends WebsocketConnection[PickleType] {
 
   private var wsOpt: Option[WebSocket] = None
   private var keepAliveTracker: Option[KeepAliveTracker] = None

@@ -3,9 +3,8 @@ package mycelium.client.raw
 import org.scalajs.dom._
 
 import scala.scalajs.js
-import scala.scalajs.js.|
 import scala.scalajs.js.annotation.JSImport
-import org.scalajs.dom._
+import scala.scalajs.js.|
 
 object WebSocketConstructor {
   type Type = (String, String) => WebSocket

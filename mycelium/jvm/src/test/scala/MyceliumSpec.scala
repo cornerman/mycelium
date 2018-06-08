@@ -1,25 +1,23 @@
 package test
 
-import org.scalatest._
-
-import mycelium.client._
-import mycelium.server._
-import mycelium.core._
-import mycelium.core.message._
-import boopickle.Default._
 import java.nio.ByteBuffer
+
+import akka.actor.ActorSystem
+import akka.stream.scaladsl._
+import akka.stream.{ActorMaterializer, OverflowStrategy}
+import boopickle.Default._
 import chameleon._
 import chameleon.ext.boopickle._
-import akka.actor.ActorSystem
-import akka.stream.{ActorMaterializer, OverflowStrategy}
-import akka.stream.scaladsl._
+import mycelium.client._
+import mycelium.core._
+import mycelium.core.message._
+import mycelium.server._
+import org.scalatest._
 
 import scala.concurrent.Future
-import scala.concurrent.duration._
 
 class MyceliumSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
-  //TODO: why does it need executionContext
-  implicit override def executionContext = scala.concurrent.ExecutionContext.Implicits.global
+  import monix.execution.Scheduler.Implicits.global
 
   implicit val system = ActorSystem()
   implicit val materializer = ActorMaterializer()
@@ -40,11 +38,11 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAl
 
     // client.run("ws://hans")
 
-    val res = client.send("foo" :: "bar" :: Nil, 1, SendType.NowOrFail, 30 seconds)
-    val res2 = client.send("foo" :: "bar" :: Nil, 1, SendType.WhenConnected, 30 seconds)
+    val res = client.send("foo" :: "bar" :: Nil, 1, SendType.NowOrFail, None)
+    val res2 = client.send("foo" :: "bar" :: Nil, 1, SendType.WhenConnected, None)
 
     res.failed.map(_ mustEqual DroppedMessageException)
-    res2.value mustEqual None
+    res2.lastL.runAsync.value mustEqual None
   }
 
   "server" in {
@@ -68,7 +66,7 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAl
       builder.unpack(msg).map(_.map(s => deserializer.deserialize(s).right.get))
     }
 
-    val expected = CallResponse(1, Right(payloadValue))
+    val expected = SingleResponse(1, Right(payloadValue))
     response.map(_ mustEqual Some(expected))
   }
 }
