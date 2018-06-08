@@ -14,10 +14,9 @@ object DisconnectReason {
   case class StateFailed(failure: Throwable) extends DisconnectReason
 }
 
-class NotifiableClient[Event, State](actor: ActorRef, downstreamActor: ActorRef) {
-  //TODO: get rid on event function
-  private[mycelium] case class Notify(eventsf: Future[State] => Future[List[Event]])
-  def notify(eventsf: Future[State] => Future[List[Event]]): Unit = actor ! Notify(eventsf)
+class NotifiableClient[Event](actor: ActorRef, downstreamActor: ActorRef) {
+  private[mycelium] case class Notify(events: List[Event])
+  def notifyWithReaction(events: List[Event]): Unit = actor ! Notify(events)
   def notify(events: List[Event]): Unit = if (events.nonEmpty) downstreamActor ! Notification(events)
 }
 
@@ -27,8 +26,7 @@ private[mycelium] class ConnectedClient[Payload, Event, Failure, State](
   import handler._
 
   def connected(outgoing: ActorRef) = {
-    val client = new NotifiableClient[Event,State](self, outgoing)
-    def sendEvents(events: List[Event]): Unit = if (events.nonEmpty) outgoing ! Notification(events)
+    val client = new NotifiableClient[Event](self, outgoing)
     def stopActor(state: Future[State], reason: DisconnectReason): Unit = {
       onClientDisconnect(client, state, reason)
       context.stop(self)
@@ -48,14 +46,12 @@ private[mycelium] class ConnectedClient[Payload, Event, Failure, State](
           case EventualResult.Single(future) =>
             future.onComplete {
               case Success(value) =>
-                outgoing ! SingleResponse(seqId, value.result)
-                sendEvents(value.events)
+                outgoing ! SingleResponse(seqId, value)
               case Failure(t) => outgoing ! ErrorResponse(seqId, t.getMessage)
             }
           case EventualResult.Stream(observable) =>
             observable.foreach { value =>
-              outgoing ! StreamResponse(seqId, value.result)
-              sendEvents(value.events)
+              outgoing ! StreamResponse(seqId, value)
             }
             observable.completedL.runAsync.onComplete {
               case Success(_) => outgoing ! StreamCloseResponse(seqId)
@@ -65,14 +61,14 @@ private[mycelium] class ConnectedClient[Payload, Event, Failure, State](
         }
         context.become(safeWithState(response.state))
 
-      case client.Notify(notifyEvents) =>
-        val newState = notifyEvents(state).flatMap { events =>
-          if (events.nonEmpty) {
-            val reaction = onEvent(client, state, events)
-            reaction.events.foreach(sendEvents)
-            reaction.state
-          } else state
-        }
+      case client.Notify(events) =>
+        val newState = if (events.nonEmpty) {
+          val reaction = onEvent(client, state, events)
+          reaction.events.foreach { events =>
+            if (events.nonEmpty) outgoing ! Notification(events)
+          }
+          reaction.state
+        } else state
         context.become(safeWithState(newState))
 
       case Stop => stopActor(state, DisconnectReason.Stopped)

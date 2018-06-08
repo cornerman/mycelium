@@ -15,18 +15,27 @@ import scala.concurrent.Future
 import scala.concurrent.duration._
 
 class TestRequestHandler extends FullRequestHandler[ByteBuffer, String, String, Option[String]] {
-  val clients = mutable.HashSet.empty[NotifiableClient[String, Option[String]]]
+  val clients = mutable.HashSet.empty[NotifiableClient[String]]
   val events = mutable.ArrayBuffer.empty[String]
 
   override val initialState = Future.successful(None)
 
-  override def onRequest(client: NotifiableClient[String, Option[String]], state: Future[Option[String]], path: List[String], args: ByteBuffer) = {
+  override def onRequest(client: NotifiableClient[String], state: Future[Option[String]], path: List[String], args: ByteBuffer) = {
     def deserialize[S : Pickler](ts: ByteBuffer) = Unpickle[S].fromBytes(ts)
     def serialize[S : Pickler](ts: S) = Right(Pickle.intoBytes[S](ts))
-    def streamValues[S : Pickler](ts: List[S], events: List[String] = Nil) = Observable.fromIterable(ts.map(ts => ReturnValue(serialize(ts), events)))
-    def value[S : Pickler](ts: S, events: List[String] = Nil) = Future.successful(ReturnValue(serialize(ts), events))
-    def valueFut[S : Pickler](ts: Future[S], events: List[String] = Nil) = ts.map(ts => ReturnValue(serialize(ts), events))
-    def error(ts: String, events: List[String] = Nil) = Future.successful(ReturnValue(Left(ts), events))
+    def streamValues[S : Pickler](ts: List[S]) = Observable.fromIterable(ts.map(ts => serialize(ts)))
+    def value[S : Pickler](ts: S, events: List[String] = Nil) = {
+      client.notify(events)
+      Future.successful(serialize(ts))
+    }
+    def valueFut[S : Pickler](ts: Future[S], events: List[String] = Nil) = {
+      client.notify(events)
+      ts.map(ts => serialize(ts))
+    }
+    def error(ts: String, events: List[String] = Nil) = {
+      client.notify(events)
+      Future.successful(Left(ts))
+    }
 
     path match {
       case "true" :: Nil =>
@@ -53,19 +62,19 @@ class TestRequestHandler extends FullRequestHandler[ByteBuffer, String, String, 
     }
   }
 
-  override def onEvent(client: NotifiableClient[String, Option[String]], state: Future[Option[String]], newEvents: List[String]) = {
+  override def onEvent(client: NotifiableClient[String], state: Future[Option[String]], newEvents: List[String]) = {
     events ++= newEvents
     val downstreamEvents = newEvents.map(event => s"${event}-ok")
     Reaction(state, Future.successful(downstreamEvents))
   }
 
-  override def onClientConnect(client: NotifiableClient[String, Option[String]], state: Future[Option[String]]): Unit = {
+  override def onClientConnect(client: NotifiableClient[String], state: Future[Option[String]]): Unit = {
     client.notify(List("started:direct"))
-    client.notify(_ => Future.successful(List("started:reaction")))
+    client.notifyWithReaction(List("started:reaction"))
     clients += client
     ()
   }
-  override def onClientDisconnect(client: NotifiableClient[String, Option[String]], state: Future[Option[String]], reason: DisconnectReason): Unit = {
+  override def onClientDisconnect(client: NotifiableClient[String], state: Future[Option[String]], reason: DisconnectReason): Unit = {
     clients -= client
     ()
   }
