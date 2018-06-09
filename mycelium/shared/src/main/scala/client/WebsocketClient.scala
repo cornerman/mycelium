@@ -3,19 +3,28 @@ package mycelium.client
 import chameleon._
 import monix.execution.Scheduler
 import monix.reactive.{Observable, Observer}
+import monix.reactive.subjects.PublishSubject
 import mycelium.core.message._
 
 import scala.concurrent.duration._
 
 case class WebsocketClientConfig(minReconnectDelay: FiniteDuration = 1.seconds, maxReconnectDelay: FiniteDuration = 60.seconds, delayReconnectFactor: Double = 1.3, connectingTimeout: FiniteDuration = 5.seconds, pingInterval: FiniteDuration = 45.seconds)
 
-class WebsocketClientWithPayload[PickleType, Payload, Event, Failure](
+class WebsocketClientWithPayload[PickleType, Payload, Failure](
   wsConfig: WebsocketClientConfig,
   ws: WebsocketConnection[PickleType],
-  handler: IncidentHandler[Event],
   requestMap: RequestMap[Either[Failure, Payload]])(implicit
   serializer: Serializer[ClientMessage[Payload], PickleType],
-  deserializer: Deserializer[ServerMessage[Payload, Event, Failure], PickleType]) {
+  deserializer: Deserializer[ServerMessage[Payload, Failure], PickleType]) {
+
+  private object subject {
+    val connected = PublishSubject[Unit]()
+    val disconnected = PublishSubject[Unit]()
+  }
+  object observable {
+    val connected: Observable[Unit] = subject.connected
+    val disconnected: Observable[Unit] = subject.disconnected
+  }
 
   def send(path: List[String], payload: Payload, sendType: SendType, requestTimeout: Option[FiniteDuration])(implicit scheduler: Scheduler): Observable[Either[Failure, Payload]] = {
     val (seqId, subject) = requestMap.open()
@@ -32,10 +41,10 @@ class WebsocketClientWithPayload[PickleType, Payload, Event, Failure](
   }
 
   def run(location: String): Unit = ws.run(location, wsConfig, serializer.serialize(Ping()), new WebsocketListener[PickleType] {
-    def onConnect() = handler.onConnect()
+    def onConnect() = subject.connected.onNext(())
     def onClose() = {
       requestMap.cancelAllRequests()
-      handler.onClose()
+      subject.disconnected.onNext(())
     }
     def onMessage(msg: PickleType): Unit = {
       def withRequestObserver(seqId: SequenceId)(f: Observer[Either[Failure, Payload]] => Unit) = requestMap.get(seqId) match {
@@ -57,8 +66,6 @@ class WebsocketClientWithPayload[PickleType, Payload, Event, Failure](
           case ErrorResponse(seqId, msg) => withRequestObserver(seqId) { obs =>
             obs.onError(RequestException.ErrorResponse(msg))
           }
-          case Notification(events) =>
-            handler.onEvents(events)
           case Pong() =>
           // do nothing
         }
@@ -70,21 +77,19 @@ class WebsocketClientWithPayload[PickleType, Payload, Event, Failure](
 }
 
 object WebsocketClient {
-  def apply[PickleType, Event, Failure](
+  def apply[PickleType, Failure](
     connection: WebsocketConnection[PickleType],
-    config: WebsocketClientConfig,
-    handler: IncidentHandler[Event])(implicit
+    config: WebsocketClientConfig)(implicit
     serializer: Serializer[ClientMessage[PickleType], PickleType],
-    deserializer: Deserializer[ServerMessage[PickleType, Event, Failure], PickleType]) =
-    withPayload[PickleType, PickleType, Event, Failure](connection, config, handler)
+    deserializer: Deserializer[ServerMessage[PickleType, Failure], PickleType]) =
+    withPayload[PickleType, PickleType, Failure](connection, config)
 
-  def withPayload[PickleType, Payload, Event, Failure](
+  def withPayload[PickleType, Payload, Failure](
     connection: WebsocketConnection[PickleType],
-    config: WebsocketClientConfig,
-    handler: IncidentHandler[Event])(implicit
+    config: WebsocketClientConfig)(implicit
     serializer: Serializer[ClientMessage[Payload], PickleType],
-    deserializer: Deserializer[ServerMessage[Payload, Event, Failure], PickleType]) = {
+    deserializer: Deserializer[ServerMessage[Payload, Failure], PickleType]) = {
     val requestMap = new RequestMap[Either[Failure, Payload]]
-    new WebsocketClientWithPayload(config, connection, handler, requestMap)
+    new WebsocketClientWithPayload(config, connection, requestMap)
   }
 }

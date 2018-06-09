@@ -14,12 +14,12 @@ import scala.util.control.NonFatal
 object WebsocketServerFlow {
   type Type = Flow[Message, Message, NotUsed]
 
-  def apply[PickleType, Payload, Event, Failure, State](
+  def apply[PickleType, Payload, Failure, State](
     config: WebsocketServerConfig,
-    handler: RequestHandler[Payload, Event, Failure, State])(implicit
+    handler: RequestHandler[Payload, Failure, State])(implicit
     system: ActorSystem,
     scheduler: MonixScheduler,
-    serializer: Serializer[ServerMessage[Payload, Event, Failure], PickleType],
+    serializer: Serializer[ServerMessage[Payload, Failure], PickleType],
     deserializer: Deserializer[ClientMessage[Payload], PickleType],
     builder: AkkaMessageBuilder[PickleType]): Type = {
 
@@ -47,7 +47,7 @@ object WebsocketServerFlow {
       }.to(Sink.actorRef[ClientMessage[Payload]](connectedClientActor, ConnectedClient.Stop))
 
     val outgoing: Source[Message, NotUsed] =
-      Source.actorRef[ServerMessage[Payload, Event, Failure]](config.bufferSize, config.overflowStrategy)
+      Source.actorRef[ServerMessage[Payload, Failure]](config.bufferSize, config.overflowStrategy)
         .mapMaterializedValue { outActor =>
           connectedClientActor ! ConnectedClient.Connect(outActor)
           NotUsed

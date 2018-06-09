@@ -29,13 +29,12 @@ class MyceliumRealSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAft
   }
 
   type Payload = Int
-  type Event = String
   type Failure = Int
   type State = String
 
   val config = WebsocketServerConfig(bufferSize = 5, overflowStrategy = OverflowStrategy.fail)
-  val handler = new SimpleStatelessRequestHandler[Payload, Event, Failure] {
-    def onRequest(path: List[String], payload: Payload) = path match {
+  val handler = new StatelessRequestHandler[Payload, Failure] {
+    def onRequest(client: ClientId, path: List[String], payload: Payload) = path match {
       case "single" :: Nil => Response(Future.successful(Right(payload)))
       case "stream" :: Nil => Response(Observable.fromIterable(List(1,2).map(i => Right(i))))
       case _ => ???
@@ -46,8 +45,8 @@ class MyceliumRealSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAft
   Http().bindAndHandle(route, interface = "0.0.0.0", port = port)
 
   "client with akka" - {
-    val client = WebsocketClient.withPayload[ByteBuffer, Payload, Event, Failure](
-      new AkkaWebsocketConnection(bufferSize = 100, overflowStrategy = OverflowStrategy.fail), WebsocketClientConfig(), new IncidentHandler[Event])
+    val client = WebsocketClient.withPayload[ByteBuffer, Payload, Failure](
+      new AkkaWebsocketConnection(bufferSize = 100, overflowStrategy = OverflowStrategy.fail), WebsocketClientConfig())
 
     client.run(s"ws://localhost:$port")
 
