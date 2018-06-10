@@ -16,7 +16,7 @@ trait RequestHandler[Payload, Failure, State] {
   type Response = HandlerResponse[Payload, Failure, State]
 
   // return the initial state for a client
-  def initialState: Future[State]
+  def initialState(client: ClientId): Future[State]
 
   // called when a client connects to the websocket. this allows for
   // managing/bookkeeping of connected clients. the ClientId uniquely
@@ -39,14 +39,16 @@ trait StatefulRequestHandler[Payload, Failure, State] extends RequestHandler[Pay
 }
 
 trait StatelessRequestHandler[Payload, Failure] extends RequestHandler[Payload, Failure, Unit] {
-  def Response(value: Future[Either[Failure, Payload]]): Response = HandlerResponse(initialState, EventualResult.Single(value))
-  def Response(value: Observable[Either[Failure, Payload]]): Response = HandlerResponse(initialState, EventualResult.Stream(value))
+  private val dummyState = Future.successful(())
+
+  def Response(value: Future[Either[Failure, Payload]]): Response = HandlerResponse(dummyState, EventualResult.Single(value))
+  def Response(value: Observable[Either[Failure, Payload]]): Response = HandlerResponse(dummyState, EventualResult.Stream(value))
 
   def onClientConnect(client: ClientId): Unit = {}
   def onClientDisconnect(client: ClientId, reason: DisconnectReason): Unit = {}
   def onRequest(client: ClientId, path: List[String], payload: Payload): Response
 
-  final def initialState = Future.successful(())
+  final def initialState(clientId: ClientId) = dummyState
   final override def onClientConnect(client: ClientId, state: Future[Unit]): Unit = onClientConnect(client)
   final override def onClientDisconnect(client: ClientId, state: Future[Unit], reason: DisconnectReason): Unit = onClientDisconnect(client, reason)
   final override def onRequest(client: ClientId, state: Future[Unit], path: List[String], payload: Payload): Response = onRequest(client, path, payload)
