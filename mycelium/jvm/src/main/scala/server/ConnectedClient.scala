@@ -60,7 +60,7 @@ private[mycelium] class ConnectedClient[Payload, Failure, State](
       case Stop => stopActor(state, DisconnectReason.Stopped)
     }
 
-    val firstState = initialState
+    val firstState = initialState(clientId)
     onClientConnect(clientId, firstState)
     safeWithState(firstState)
   }
