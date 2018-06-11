@@ -35,7 +35,10 @@ object WebsocketServerFlow {
         val result = for {
           value <- unpackedValue.right
           msg <- deserializer.deserialize(value).left.map(t => s"Deserializer failed: $t").right
-        } yield msg
+        } yield {
+          println("GOT " + msg)
+          msg
+        }
 
         result match {
           case Right(res) =>
@@ -52,6 +55,7 @@ object WebsocketServerFlow {
           connectedClientActor ! ConnectedClient.Connect(outActor)
           NotUsed
         }.map { msg =>
+          println("SENDING " + msg)
           val value = serializer.serialize(msg)
           builder.pack(value)
         }

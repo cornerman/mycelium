@@ -42,18 +42,18 @@ class WebsocketClientWithPayload[PickleType, Payload, Event, Failure](
         case None => scribe.warn(s"Ignoring incoming response for '$seqId', unknown sequence id.")
       }
       deserializer.deserialize(msg) match {
-        case Right(response) => response match {
-          case SingleResponse(seqId, result) => withRequestObserver(seqId) { obs =>
+        case Right(response) => println("GOT: " + response); response match {
+          case SingleResponse(seqId, result) => println("SINGLE RESPONSE"); withRequestObserver(seqId) { obs =>
             val _ = obs.onNext(result)
             obs.onComplete()
           }
-          case StreamResponse(seqId, result) => withRequestObserver(seqId) { obs =>
+          case StreamResponse(seqId, result) => println("STREAM RESPONSE"); withRequestObserver(seqId) { obs =>
             val _ = obs.onNext(result)
           }
-          case StreamCloseResponse(seqId) => withRequestObserver(seqId) { obs =>
+          case StreamCloseResponse(seqId) => println("STREAM CLOSE"); withRequestObserver(seqId) { obs =>
             obs.onComplete()
           }
-          case ErrorResponse(seqId, msg) => withRequestObserver(seqId) { obs =>
+          case ErrorResponse(seqId, msg) => println("SINGLE?STREAM ERROR"); withRequestObserver(seqId) { obs =>
             obs.onError(WebsocketErrorResponse(msg))
           }
           case Notification(events) =>

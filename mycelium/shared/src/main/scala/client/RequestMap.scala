@@ -16,7 +16,7 @@ class RequestMap[T] {
     val subject = ReplaySubject[T]()
     val seqId = idSequence.incrementAndGet()
     openRequests.put(seqId, subject)
-    subject.completedL.runAsync.onComplete { _ => openRequests.remove(seqId) }
+    // subject.completedL.runAsync.onComplete { _ => openRequests.remove(seqId) }
 
     seqId -> subject
   }

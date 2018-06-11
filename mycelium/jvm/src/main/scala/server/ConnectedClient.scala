@@ -45,8 +45,7 @@ private[mycelium] class ConnectedClient[Payload, Event, Failure, State](
         response.value match {
           case EventualResult.Single(future) =>
             future.onComplete {
-              case Success(value) =>
-                outgoing ! SingleResponse(seqId, value)
+              case Success(value) => outgoing ! SingleResponse(seqId, value)
               case Failure(t) => outgoing ! ErrorResponse(seqId, t.getMessage)
             }
           case EventualResult.Stream(observable) =>
@@ -58,6 +57,12 @@ private[mycelium] class ConnectedClient[Payload, Event, Failure, State](
               case Failure(t) => outgoing ! ErrorResponse(seqId, t.getMessage)
 
             }
+          case EventualResult.Stream(observable) =>
+            cancelables += observable
+              .map(StreamResponse(seqId, _))
+              .endWith(StreamCloseResponse(seqId) :: Nil)
+              .doOnError(t => outgoing ! ErrorResponse(seqId, t.getMessage))
+              .foreach(outgoing ! _)
         }
         context.become(safeWithState(response.state))
 
