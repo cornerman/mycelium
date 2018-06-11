@@ -191,18 +191,15 @@ class ConnectedClientSpec extends TestKit(ActorSystem("ConnectedClientSpec")) wi
 
       actor ! CallRequest(1, List("state"), noArg)
       actor ! CallRequest(2, List("state", "fail"), noArg)
-      actor ! CallRequest(3, List("true"), noArg)
-      actor ! CallRequest(4, List("state"), noArg)
 
       val pickledResponse1 = Pickle.intoBytes[Option[String]](None)
       val pickledResponse2 = Pickle.intoBytes[Boolean](true)
       expectMsgAllOf(
-        2 seconds,
+        1 seconds,
         SingleResponse(1, Right(pickledResponse1)),
-        SingleResponse(2, Right(pickledResponse2)),
-        SingleResponse(3, Right(pickledResponse2)),
-        ErrorResponse(4, "failed-state"))
+        SingleResponse(2, Right(pickledResponse2)))
 
+      Thread.sleep(1000)
       actor ! CallRequest(3, List("true"), noArg)
       actor ! CallRequest(4, List("state"), noArg)
 

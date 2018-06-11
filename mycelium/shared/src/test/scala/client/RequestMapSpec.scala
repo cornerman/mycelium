@@ -30,9 +30,16 @@ class RequestMapSpec extends AsyncFreeSpec with MustMatchers {
     "usable subject" in {
       val requests = new RequestMap[Int]
       val (_, subject) = requests.open()
-      subject.onNext(1)
-      subject.onComplete()
-      subject.lastL.runAsync.map(_ mustEqual 1)
+      var elems: List[Int] = Nil
+      subject.foreach { e =>
+        elems = elems :+ e
+      }
+
+      for {
+        _ <- subject.onNext(1)
+        _ <- subject.onNext(2)
+        _ = subject.onComplete()
+      } yield elems mustEqual List(1, 2)
     }
   }
 }
