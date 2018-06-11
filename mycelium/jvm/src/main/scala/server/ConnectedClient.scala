@@ -16,7 +16,7 @@ object DisconnectReason {
 }
 
 case class ClientId(id: Int) extends AnyVal {
-  override def toString = s"Client(${Integer.toString(client.hashCode, 36)})"
+  override def toString = s"Client(${Integer.toString(id.hashCode, 36)})"
 }
 
 private[mycelium] class ConnectedClient[Payload, Failure, State](
@@ -27,7 +27,7 @@ private[mycelium] class ConnectedClient[Payload, Failure, State](
   //TODO: observable state?
   def connected(outgoing: ActorRef) = {
     val cancelables = CompositeCancelable()
-    val clientId = new ClientId(self.hashCode)
+    val clientId = ClientId(self.hashCode)
     def stopActor(state: Future[State], reason: DisconnectReason): Unit = {
       onClientDisconnect(clientId, state, reason)
       cancelables.cancel()
