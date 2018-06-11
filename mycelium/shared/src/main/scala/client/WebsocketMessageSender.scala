@@ -7,9 +7,6 @@ import monix.execution.Scheduler
 import scala.collection.mutable
 import scala.concurrent.Future
 
-case object TimeoutException extends Exception
-case object DroppedMessageException extends Exception
-
 trait WebsocketMessageSender[PickleType, Sender] {
   protected def senderOption: Option[Sender]
   protected def doSend(sender: Sender, message: PickleType): Future[Boolean]
@@ -38,7 +35,7 @@ trait WebsocketMessageSender[PickleType, Sender] {
   }
 
   private def signalDroppedMessage(message: WebsocketMessage[PickleType]): Unit = {
-    message.subject.onError(DroppedMessageException)
+    message.subject.onError(RequestException.Dropped)
     ()
   }
 
@@ -46,7 +43,7 @@ trait WebsocketMessageSender[PickleType, Sender] {
     val timer = new Timer
     val task: TimerTask = new TimerTask {
       def run(): Unit = {
-        message.subject.onError(TimeoutException)
+        message.subject.onError(RequestException.Timeout)
         ()
       }
     }

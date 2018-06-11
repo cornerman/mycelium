@@ -35,7 +35,10 @@ class WebsocketClientWithPayload[PickleType, Payload, Event, Failure](
 
   def run(location: String): Unit = ws.run(location, wsConfig, serializer.serialize(Ping()), new WebsocketListener[PickleType] {
     def onConnect() = handler.onConnect()
-    def onClose() = handler.onClose()
+    def onClose() = {
+      requestMap.cancelAllRequests()
+      handler.onClose()
+    }
     def onMessage(msg: PickleType): Unit = {
       def withRequestObserver(seqId: SequenceId)(f: Observer[Either[Failure, Payload]] => Unit) = requestMap.get(seqId) match {
         case Some(subject) => f(subject)

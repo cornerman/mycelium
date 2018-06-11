@@ -1,6 +1,7 @@
 package mycelium.server
 
 import akka.actor.{Actor, ActorRef}
+import monix.execution.cancelables.CompositeCancelable
 import monix.execution.{Scheduler => MonixScheduler}
 import mycelium.core.message._
 
@@ -26,9 +27,11 @@ private[mycelium] class ConnectedClient[Payload, Event, Failure, State](
   import handler._
 
   def connected(outgoing: ActorRef) = {
+    val cancelables = CompositeCancelable()
     val client = new NotifiableClient[Event](self, outgoing)
     def stopActor(state: Future[State], reason: DisconnectReason): Unit = {
       onClientDisconnect(client, state, reason)
+      cancelables.cancel()
       context.stop(self)
     }
     def safeWithState(state: Future[State]): Receive = {
@@ -49,7 +52,7 @@ private[mycelium] class ConnectedClient[Payload, Event, Failure, State](
               case Failure(t) => outgoing ! ErrorResponse(seqId, t.getMessage)
             }
           case EventualResult.Stream(observable) =>
-            observable
+            cancelables += observable
               .map(StreamResponse(seqId, _))
               .endWith(StreamCloseResponse(seqId) :: Nil)
               .doOnError(t => outgoing ! ErrorResponse(seqId, t.getMessage))
