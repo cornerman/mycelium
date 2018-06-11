@@ -31,11 +31,10 @@ class MyceliumRealSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAft
   type Payload = Int
   type Event = String
   type Failure = Int
-  type State = String
 
   val config = WebsocketServerConfig(bufferSize = 5, overflowStrategy = OverflowStrategy.fail)
-  val handler = new SimpleStatelessRequestHandler[Payload, Event, Failure] {
-    def onRequest(path: List[String], payload: Payload) = path match {
+  val handler = new StatelessRequestHandler[Payload, Event, Failure] {
+    def onRequest(client: Client[Event], path: List[String], payload: Payload) = path match {
       case "single" :: Nil => Response(Future.successful(Right(payload)))
       case "stream" :: Nil => Response(Observable.fromIterable(List(1,2).map(i => Right(i))))
     }

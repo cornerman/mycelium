@@ -2,6 +2,9 @@ package mycelium.server
 
 import akka.actor.{Actor, ActorRef}
 import monix.execution.{Scheduler => MonixScheduler}
+import monix.execution.cancelables.CompositeCancelable
+import monix.reactive.Observer
+import monix.reactive.subjects.PublishSubject
 import mycelium.core.message._
 
 import scala.concurrent.Future
@@ -14,11 +17,13 @@ object DisconnectReason {
   case class StateFailed(failure: Throwable) extends DisconnectReason
 }
 
-class NotifiableClient[Event](actor: ActorRef, downstreamActor: ActorRef) {
-  private[mycelium] case class Notify(events: List[Event])
-  def notifyWithReaction(events: List[Event]): Unit = actor ! Notify(events)
-  def notify(events: List[Event]): Unit = if (events.nonEmpty) downstreamActor ! Notification(events)
+sealed trait DownstreamEvent[Event] extends Any
+object DownstreamEvent {
+  case class Notify[Event](events: List[Event]) extends AnyVal with DownstreamEvent[Event]
+  case class NotifyWithReaction[Event](events: List[Event]) extends AnyVal with DownstreamEvent[Event]
 }
+
+class Client[Event](id: Int, observer: Observer[DownstreamEvent[Event]])
 
 private[mycelium] class ConnectedClient[Payload, Event, Failure, State](
   handler: RequestHandler[Payload, Event, Failure, State])(implicit scheduler: MonixScheduler) extends Actor {
@@ -26,9 +31,17 @@ private[mycelium] class ConnectedClient[Payload, Event, Failure, State](
   import handler._
 
   def connected(outgoing: ActorRef) = {
-    val client = new NotifiableClient[Event](self, outgoing)
+    val cancelables = CompositeCancelable()
+    val clientSubject = PublishSubject[DownstreamEvent[Event]]()
+    val client = new Client[Event](self.hashCode, clientSubject)
+    cancelables += clientSubject.foreach {
+      case DownstreamEvent.Notify(events) => if (events.nonEmpty) outgoing ! Notification(events)
+      case DownstreamEvent.NotifyWithReaction(events) => if (events.nonEmpty) self ! ActorNotification(events)
+    }
+
     def stopActor(state: Future[State], reason: DisconnectReason): Unit = {
       onClientDisconnect(client, state, reason)
+      cancelables.cancel()
       context.stop(self)
     }
     def safeWithState(state: Future[State]): Receive = {
@@ -48,14 +61,8 @@ private[mycelium] class ConnectedClient[Payload, Event, Failure, State](
               case Success(value) => outgoing ! SingleResponse(seqId, value)
               case Failure(t) => outgoing ! ErrorResponse(seqId, t.getMessage)
             }
-          case EventualResult.Stream(observable) =>
-            observable.foreach { value =>
-              outgoing ! StreamResponse(seqId, value)
-            }
-            observable.completedL.runAsync.onComplete {
-              case Success(_) => outgoing ! StreamCloseResponse(seqId)
-              case Failure(t) => outgoing ! ErrorResponse(seqId, t.getMessage)
 
+<<<<<<< Updated upstream
             }
           case EventualResult.Stream(observable) =>
             cancelables += observable
@@ -63,10 +70,20 @@ private[mycelium] class ConnectedClient[Payload, Event, Failure, State](
               .endWith(StreamCloseResponse(seqId) :: Nil)
               .doOnError(t => outgoing ! ErrorResponse(seqId, t.getMessage))
               .foreach(outgoing ! _)
+||||||| merged common ancestors
+            }
+=======
+          case EventualResult.Stream(observable) =>
+            cancelables += observable
+              .map(StreamResponse(seqId, _))
+              .endWith(StreamCloseResponse(seqId) :: Nil)
+              .doOnError(t => outgoing ! ErrorResponse(seqId, t.getMessage))
+              .foreach(outgoing ! _)
+>>>>>>> Stashed changes
         }
         context.become(safeWithState(response.state))
 
-      case client.Notify(events) =>
+      case ActorNotification(events: List[Event]@unchecked) =>
         val newState = if (events.nonEmpty) {
           val reaction = onEvent(client, state, events)
           reaction.events.foreach { events =>
@@ -91,5 +108,6 @@ private[mycelium] class ConnectedClient[Payload, Event, Failure, State](
 }
 private[mycelium] object ConnectedClient {
   case class Connect(actor: ActorRef)
+  case class ActorNotification[Event](events: List[Event])
   case object Stop
 }
