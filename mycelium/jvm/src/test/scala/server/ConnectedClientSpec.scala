@@ -17,7 +17,7 @@ import scala.concurrent.duration._
 class TestRequestHandler extends StatefulRequestHandler[ByteBuffer, String, Option[String]] {
   val clients = mutable.HashSet.empty[ClientId]
 
-  override def initialState(clientId: ClientId) = Future.successful(None)
+  override val initialState = Future.successful(None)
 
   override def onRequest(client: ClientId, state: Future[Option[String]], path: List[String], args: ByteBuffer) = {
     def deserialize[S : Pickler](ts: ByteBuffer) = Unpickle[S].fromBytes(ts)
