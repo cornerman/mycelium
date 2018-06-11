@@ -38,6 +38,7 @@ class MyceliumRealSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAft
     def onRequest(path: List[String], payload: Payload) = path match {
       case "single" :: Nil => Response(Future.successful(Right(payload)))
       case "stream" :: Nil => Response(Observable.fromIterable(List(1,2).map(i => Right(i))))
+      case _ => ???
     }
   }
   val server = WebsocketServer.withPayload(config, handler)
