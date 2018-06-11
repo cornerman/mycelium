@@ -22,4 +22,11 @@ class RequestMap[T] {
   }
 
   def get(seqId: SequenceId): Option[Observer[T]] = Option(openRequests.get(seqId))
+
+  def cancelAllRequests() = {
+    openRequests.keySet().forEach { key =>
+      val removed = openRequests.remove(key)
+      if (removed != null) removed.onError(RequestException.Canceled)
+    }
+  }
 }
