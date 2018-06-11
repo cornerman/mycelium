@@ -15,7 +15,9 @@ object DisconnectReason {
   case class StateFailed(failure: Throwable) extends DisconnectReason
 }
 
-case class ClientId(id: Int) extends AnyVal
+case class ClientId(id: Int) extends AnyVal {
+  override def toString = s"Client(${Integer.toString(client.hashCode, 36)})"
+}
 
 private[mycelium] class ConnectedClient[Payload, Failure, State](
   handler: RequestHandler[Payload, Failure, State])(implicit scheduler: MonixScheduler) extends Actor {
