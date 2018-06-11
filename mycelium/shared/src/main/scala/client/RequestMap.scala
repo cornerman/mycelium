@@ -5,7 +5,7 @@ import java.util.concurrent.atomic.AtomicInteger
 
 import monix.execution.Scheduler
 import monix.reactive.Observer
-import monix.reactive.subjects.{ReplaySubject, Subject}
+import monix.reactive.subjects.{PublishSubject, Subject}
 import mycelium.core.message._
 
 class RequestMap[T] {
@@ -13,7 +13,7 @@ class RequestMap[T] {
   private val idSequence = new AtomicInteger(0)
 
   def open()(implicit scheduler: Scheduler): (SequenceId, Subject[T,T]) = {
-    val subject = ReplaySubject[T]()
+    val subject = PublishSubject[T]()
     val seqId = idSequence.incrementAndGet()
     openRequests.put(seqId, subject)
     subject.completedL.runAsync.onComplete { _ => openRequests.remove(seqId) }
