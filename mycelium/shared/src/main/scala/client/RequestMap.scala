@@ -23,10 +23,10 @@ class RequestMap[T] {
 
   def get(seqId: SequenceId): Option[Observer[T]] = Option(openRequests.get(seqId))
 
-  def cancelAllRequests() = {
-    openRequests.keySet().forEach { key =>
+  def cancelAllRequests() = openRequests.keySet().forEach(new java.util.function.Consumer[SequenceId] {
+    def accept(key: SequenceId): Unit = {
       val removed = openRequests.remove(key)
       if (removed != null) removed.onError(RequestException.Canceled)
     }
-  }
+  })
 }
