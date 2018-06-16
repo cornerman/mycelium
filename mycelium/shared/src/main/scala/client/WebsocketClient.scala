@@ -9,6 +9,7 @@ import mycelium.core.message._
 import scala.concurrent.duration._
 
 case class WebsocketClientConfig(minReconnectDelay: FiniteDuration = 1.seconds, maxReconnectDelay: FiniteDuration = 60.seconds, delayReconnectFactor: Double = 1.3, connectingTimeout: FiniteDuration = 5.seconds, pingInterval: FiniteDuration = 45.seconds)
+case class WebsocketObservable(connected: Observable[Unit], disconnected: Observable[Unit])
 
 class WebsocketClientWithPayload[PickleType, Payload, Failure](
   wsConfig: WebsocketClientConfig,
@@ -21,10 +22,7 @@ class WebsocketClientWithPayload[PickleType, Payload, Failure](
     val connected = PublishSubject[Unit]()
     val disconnected = PublishSubject[Unit]()
   }
-  object observable {
-    val connected: Observable[Unit] = subject.connected
-    val disconnected: Observable[Unit] = subject.disconnected
-  }
+  val observable = WebsocketObservable(subject.connected, subject.disconnected)
 
   def send(path: List[String], payload: Payload, sendType: SendType, requestTimeout: Option[FiniteDuration])(implicit scheduler: Scheduler): Observable[Either[Failure, Payload]] = {
     val (seqId, subject) = requestMap.open()
