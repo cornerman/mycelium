@@ -7,8 +7,6 @@ import mycelium.core.message._
 
 import scala.concurrent.duration._
 
-case class WebsocketErrorResponse(msg: String) extends Exception(msg)
-
 case class WebsocketClientConfig(minReconnectDelay: FiniteDuration = 1.seconds, maxReconnectDelay: FiniteDuration = 60.seconds, delayReconnectFactor: Double = 1.3, connectingTimeout: FiniteDuration = 5.seconds, pingInterval: FiniteDuration = 45.seconds)
 
 class WebsocketClientWithPayload[PickleType, Payload, Event, Failure](
@@ -57,7 +55,7 @@ class WebsocketClientWithPayload[PickleType, Payload, Event, Failure](
             obs.onComplete()
           }
           case ErrorResponse(seqId, msg) => withRequestObserver(seqId) { obs =>
-            obs.onError(WebsocketErrorResponse(msg))
+            obs.onError(RequestException.ErrorResponse(msg))
           }
           case Notification(events) =>
             handler.onEvents(events)
