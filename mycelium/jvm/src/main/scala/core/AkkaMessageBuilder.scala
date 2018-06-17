@@ -30,7 +30,12 @@ object AkkaMessageBuilder {
     }
   }
   implicit def AkkaMessageBuilderByteBuffer(implicit ec: ExecutionContext, materializer: Materializer) = new AkkaMessageBuilder[ByteBuffer] {
-    override def pack(payload: ByteBuffer): Message = BinaryMessage(ByteString(payload))
+    override def pack(payload: ByteBuffer): Message = {
+      val length = payload.limit() - payload.position()
+      val bytes = new Array[Byte](length)
+      payload.get(bytes, payload.position(), length)
+      BinaryMessage(ByteString(bytes))
+    }
     override def unpack(m: Message): Future[Option[ByteBuffer]] = m match {
       case BinaryMessage.Strict(payload) => Future.successful(Some(payload.asByteBuffer))
       case BinaryMessage.Streamed(stream) => limitStream(stream).runFold(new ByteStringBuilder)(_ append _).map(b => Some(b.result().asByteBuffer))
