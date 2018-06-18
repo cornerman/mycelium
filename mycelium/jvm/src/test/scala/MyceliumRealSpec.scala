@@ -12,8 +12,8 @@ import mycelium.client._
 import mycelium.server._
 import org.scalatest._
 import monix.reactive.Observable
+import monix.eval.Task
 
-import scala.concurrent.Future
 import scala.concurrent.duration._
 
 class MyceliumRealSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
@@ -35,8 +35,8 @@ class MyceliumRealSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAft
   val config = WebsocketServerConfig(bufferSize = 5, overflowStrategy = OverflowStrategy.fail)
   val handler = new StatelessRequestHandler[Payload, Failure] {
     def onRequest(client: ClientId, path: List[String], payload: Payload) = path match {
-      case "single" :: Nil => Response(Future.successful(Right(payload)))
-      case "stream" :: Nil => Response(Observable.fromIterable(List(1,2).map(i => Right(i))))
+      case "single" :: Nil => ResponseValue(Task(Right(payload)))
+      case "stream" :: Nil => ResponseStream(Task(Right(Observable(1,2,3,4))))
       case _ => ???
     }
   }
@@ -52,12 +52,13 @@ class MyceliumRealSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAft
 
     "single result" in {
       val res = client.send("single" :: Nil, 1, SendType.WhenConnected, Some(30 seconds))
-      res.lastL.runAsync.map(_ mustEqual Right(1))
+      res.flatMap(_.right.get.lastL).runAsync.map(_ mustEqual 1)
     }
 
     "stream result" in {
       val res = client.send("stream" :: Nil, 0, SendType.WhenConnected, Some(30 seconds))
-      res.foldLeftL[List[Either[Failure, Payload]]](Nil)((l,i) => l :+ i).runAsync.map(l => l mustEqual List(Right(1),Right(2)))
+      Observable.fromTask(res).flatMap(_.right.get)
+        .foldLeftL[List[Payload]](Nil)((l,i) => l :+ i).runAsync.map(l => l mustEqual List(1,2,3,4))
     }
   }
 }

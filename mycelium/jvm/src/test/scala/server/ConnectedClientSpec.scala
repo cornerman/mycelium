@@ -8,6 +8,7 @@ import boopickle.Default._
 import mycelium.core.message._
 import org.scalatest._
 import monix.reactive.Observable
+import monix.eval.Task
 
 import scala.collection.mutable
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -21,31 +22,33 @@ class TestRequestHandler extends StatefulRequestHandler[ByteBuffer, String, Opti
 
   override def onRequest(client: ClientId, state: Future[Option[String]], path: List[String], args: ByteBuffer) = {
     def deserialize[S : Pickler](ts: ByteBuffer) = Unpickle[S].fromBytes(ts)
-    def serialize[S : Pickler](ts: S) = Right(Pickle.intoBytes[S](ts))
-    def streamValues[S : Pickler](ts: List[S]) = Observable.fromIterable(ts.map(ts => serialize(ts)))
-    def value[S : Pickler](ts: S) = Future.successful(serialize(ts))
-    def valueFut[S : Pickler](ts: Future[S]) = ts.map(ts => serialize(ts))
-    def error(ts: String) = Future.successful(Left(ts))
+    def serialize[S : Pickler](ts: S) = Pickle.intoBytes[S](ts)
+    def streamValues[S : Pickler](ts: List[S]) = Task(Right(Observable.fromIterable(ts.map(ts => serialize(ts)))))
+    def value[S : Pickler](ts: S) = Task(Right(serialize(ts)))
+    def valueFut[S : Pickler](ts: Future[S]) = Task.fromFuture(ts.map(ts => Right(serialize(ts))))
+    def error(ts: String) = Task(Left(ts))
 
     path match {
       case "true" :: Nil =>
-        Response(state, value(true))
+        ResponseValue(state, value(true))
       case "api" :: Nil =>
         val str = deserialize[String](args)
-        Response(state, value(str.reverse))
+        ResponseValue(state, value(str.reverse))
       case "stream" :: Nil =>
-        Response(state, streamValues(4 :: 2 :: 0 :: Nil))
+        ResponseStream(state, streamValues(4 :: 3 :: 2 :: 1 :: 0 :: Nil))
       case "state" :: Nil =>
-        Response(state, valueFut(state))
+        ResponseValue(state, valueFut(state))
       case "state" :: "change" :: Nil =>
         val otherUser = Future.successful(Option("anon"))
-        Response(otherUser, value(true))
+        ResponseValue(otherUser, value(true))
       case "state" :: "fail" :: Nil =>
         val failure = Future.failed(new Exception("failed-state"))
-        Response(failure, value(true))
-      case "broken" :: Nil =>
-        Response(state, error("an error"))
-      case _ => Response(state, error("path not found"))
+        ResponseValue(failure, value(true))
+      case "value-broken" :: Nil =>
+        ResponseValue(state, error("an error"))
+      case "stream-broken" :: Nil =>
+        ResponseStream(state, error("an error"))
+      case _ => ResponseValue(state, error("path not found"))
     }
   }
 
@@ -116,12 +119,17 @@ class ConnectedClientSpec extends TestKit(ActorSystem("ConnectedClientSpec")) wi
   "call request" - {
     "invalid path" in connectedActor { actor =>
       actor ! CallRequest(2, List("invalid", "path"), noArg)
-      expectMsg(SingleResponse(2, Left("path not found")))
+      expectMsg(FailureResponse(2, "path not found"))
     }
 
-    "exception in api" in connectedActor { actor =>
-      actor ! CallRequest(2, List("broken"), noArg)
-      expectMsg(SingleResponse(2, Left("an error")))
+    "exception in value api" in connectedActor { actor =>
+      actor ! CallRequest(2, List("value-broken"), noArg)
+      expectMsg(FailureResponse(2, "an error"))
+    }
+
+    "exception in stream api" in connectedActor { actor =>
+      actor ! CallRequest(2, List("stream-broken"), noArg)
+      expectMsg(FailureResponse(2, "an error"))
     }
 
     "call api" in connectedActor { actor =>
@@ -129,21 +137,23 @@ class ConnectedClientSpec extends TestKit(ActorSystem("ConnectedClientSpec")) wi
       actor ! CallRequest(2, List("api"), arg)
 
       val pickledResponse = Pickle.intoBytes[String]("snah")
-      expectMsg(SingleResponse(2, Right(pickledResponse)))
+      expectMsg(SingleResponse(2, pickledResponse))
     }
 
     "stream api" in connectedActor { actor =>
       actor ! CallRequest(1, List("stream"), noArg)
 
       val pickledResponse1 = Pickle.intoBytes[Int](4)
-      val pickledResponse2 = Pickle.intoBytes[Int](2)
-      val pickledResponse3 = Pickle.intoBytes[Int](0)
-      expectMsgAllOf(
-        1 seconds,
-        StreamResponse(1, Right(pickledResponse1)),
-        StreamResponse(1, Right(pickledResponse2)),
-        StreamResponse(1, Right(pickledResponse3)),
-        StreamCloseResponse(1))
+      val pickledResponse2 = Pickle.intoBytes[Int](3)
+      val pickledResponse3 = Pickle.intoBytes[Int](2)
+      val pickledResponse4 = Pickle.intoBytes[Int](1)
+      val pickledResponse5 = Pickle.intoBytes[Int](0)
+      expectMsg(StreamResponse(1, pickledResponse1))
+      expectMsg(StreamResponse(1, pickledResponse2))
+      expectMsg(StreamResponse(1, pickledResponse3))
+      expectMsg(StreamResponse(1, pickledResponse4))
+      expectMsg(StreamResponse(1, pickledResponse5))
+      expectMsg(StreamCloseResponse(1))
     }
 
     "switch state" in connectedActor { actor =>
@@ -156,9 +166,9 @@ class ConnectedClientSpec extends TestKit(ActorSystem("ConnectedClientSpec")) wi
       val pickledResponse3 = Pickle.intoBytes[Option[String]](Option("anon"))
       expectMsgAllOf(
         1 seconds,
-        SingleResponse(1, Right(pickledResponse1)),
-        SingleResponse(2, Right(pickledResponse2)),
-        SingleResponse(3, Right(pickledResponse3)))
+        SingleResponse(1, pickledResponse1),
+        SingleResponse(2, pickledResponse2),
+        SingleResponse(3, pickledResponse3))
     }
 
     "failed state stops actor" in connectedActor { (actor, handler) =>
@@ -171,8 +181,8 @@ class ConnectedClientSpec extends TestKit(ActorSystem("ConnectedClientSpec")) wi
       val pickledResponse2 = Pickle.intoBytes[Boolean](true)
       expectMsgAllOf(
         1 seconds,
-        SingleResponse(1, Right(pickledResponse1)),
-        SingleResponse(2, Right(pickledResponse2)))
+        SingleResponse(1, pickledResponse1),
+        SingleResponse(2, pickledResponse2))
 
       Thread.sleep(1000)
       actor ! CallRequest(3, List("true"), noArg)

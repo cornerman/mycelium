@@ -1,17 +1,16 @@
 package mycelium.client
 
-import monix.reactive.subjects.Subject
-
+import scala.concurrent.Promise
 import scala.concurrent.duration.FiniteDuration
 
 sealed trait WebsocketMessage[PickleType] {
   val pickled: PickleType
-  val subject: Subject[_,_]
+  val promise: Promise[_]
   val timeout: Option[FiniteDuration]
 }
 object WebsocketMessage {
-  case class Buffered[PickleType](pickled: PickleType, subject: Subject[_,_], timeout: Option[FiniteDuration], priority: SendType.Priority) extends WebsocketMessage[PickleType]
-  case class Direct[PickleType](pickled: PickleType, subject: Subject[_,_], timeout: Option[FiniteDuration]) extends WebsocketMessage[PickleType]
+  case class Buffered[PickleType](pickled: PickleType, promise: Promise[_], timeout: Option[FiniteDuration], priority: SendType.Priority) extends WebsocketMessage[PickleType]
+  case class Direct[PickleType](pickled: PickleType, promise: Promise[_], timeout: Option[FiniteDuration]) extends WebsocketMessage[PickleType]
 }
 
 sealed trait SendType

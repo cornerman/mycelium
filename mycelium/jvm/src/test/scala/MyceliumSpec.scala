@@ -13,8 +13,7 @@ import mycelium.core._
 import mycelium.core.message._
 import mycelium.server._
 import org.scalatest._
-
-import scala.concurrent.Future
+import monix.eval.Task
 
 class MyceliumSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
   import monix.execution.Scheduler.Implicits.global
@@ -41,13 +40,13 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAl
     val res2 = client.send("foo" :: "bar" :: Nil, 1, SendType.WhenConnected, None)
 
     res.failed.map(_ mustEqual RequestException.Dropped)
-    res2.lastL.runAsync.value mustEqual None
+    res2.runAsync.value mustEqual None
   }
 
   "server" in {
     val config = WebsocketServerConfig(bufferSize = 5, overflowStrategy = OverflowStrategy.fail)
     val handler = new StatelessRequestHandler[Payload, Failure] {
-      def onRequest(client: ClientId, path: List[String], payload: Payload) = Response(Future.successful(Right(payload)))
+      def onRequest(client: ClientId, path: List[String], payload: Payload) = ResponseValue(Task(Right(payload)))
     }
 
     val server = WebsocketServer.withPayload(config, handler)
@@ -65,7 +64,7 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAl
       builder.unpack(msg).map(_.map(s => deserializer.deserialize(s).right.get))
     }
 
-    val expected = SingleResponse(1, Right(payloadValue))
+    val expected = SingleResponse(1, payloadValue)
     response.map(_ mustEqual Some(expected))
   }
 }
