@@ -1,6 +1,7 @@
 package mycelium.server
 
 import akka.actor.{Actor, ActorRef}
+import monix.reactive.Observable
 import monix.execution.cancelables.CompositeCancelable
 import monix.execution.{Scheduler => MonixScheduler}
 import mycelium.core.message._
@@ -45,16 +46,21 @@ private[mycelium] class ConnectedClient[Payload, Failure, State](
       case CallRequest(seqId, path, args: Payload@unchecked) =>
         val response = onRequest(clientId, state, path, args)
         response.value match {
-          case EventualResult.Single(future) =>
-            future.onComplete {
-              case Success(value) => outgoing ! SingleResponse(seqId, value)
-              case Failure(t) => outgoing ! ErrorResponse(seqId, t.getMessage)
-            }
-          case EventualResult.Stream(observable) =>
-            cancelables += observable
-              .map(StreamResponse(seqId, _))
-              .endWith(StreamCloseResponse(seqId) :: Nil)
-              .doOnError(t => outgoing ! ErrorResponse(seqId, t.getMessage))
+          case EventualResult.Single(task) => task.runAsync.onComplete {
+            case Success(Right(value)) => outgoing ! SingleResponse(seqId, value)
+            case Success(Left(failure)) => outgoing ! FailureResponse(seqId, failure)
+            case Failure(t) => outgoing ! ErrorResponse(seqId)
+          }
+          case EventualResult.Stream(task) =>
+            cancelables += Observable.fromTask(task)
+              .flatMap {
+                case Right(observable) =>
+                  observable
+                    .map(StreamResponse(seqId, _))
+                    .endWith(StreamCloseResponse(seqId) :: Nil)
+                case Left(failure) => Observable(FailureResponse(seqId, failure))
+              }
+              .doOnError(t => outgoing ! ErrorResponse(seqId))
               .foreach(outgoing ! _)
         }
         context.become(safeWithState(response.state))

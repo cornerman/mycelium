@@ -1,5 +1,7 @@
 package mycelium.client
 
+import scala.concurrent.Future
+
 trait WebsocketListener[PickleType] {
   def onConnect(): Unit
   def onMessage(value: PickleType): Unit
