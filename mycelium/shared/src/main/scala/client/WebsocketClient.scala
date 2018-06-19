@@ -98,8 +98,6 @@ class WebsocketClientWithPayload[PickleType, Payload, Failure](
   }
 
   def run(location: String): Unit = ws.run(location, wsConfig, serializer.serialize(Ping()), new WebsocketListener[PickleType] {
-    private var currentAck: Future[Ack] = Future.successful(Ack.Continue)
-
     def onConnect() = {
       val _ = subjects.connected.onNext(())
     }
@@ -107,20 +105,21 @@ class WebsocketClientWithPayload[PickleType, Payload, Failure](
       requestMap.cancelAllRequests()
       val _ = subjects.disconnected.onNext(())
     }
-    def onMessage(msg: PickleType): Unit = {
+    def onMessage(msg: PickleType): Future[Unit] = {
       deserializer.deserialize(msg) match {
         case Right(response) => response match {
-          case response: ServerResponse =>
-            currentAck = currentAck.flatMap {
-              case Ack.Continue => subjects.messages.onNext(response)
-              case Ack.Stop =>
-                scribe.warn("Cannot push further messages, received Stop.")
-                Ack.Stop
-            }
-          case Pong() => ()
+          case response: ServerResponse => subjects.messages.onNext(response).flatMap {
+            case Ack.Continue => Future.successful(())
+            case Ack.Stop =>
+              scribe.warn("Cannot push further messages, received Stop.")
+              Future.failed(RequestException.StoppedDownstream)
+          }
+          case Pong() =>
+            Future.successful(())
         }
         case Left(error) =>
           scribe.warn(s"Ignoring message. Deserializer failed: $error")
+          Future.successful(())
       }
     }
   })

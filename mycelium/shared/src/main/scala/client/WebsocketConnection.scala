@@ -4,7 +4,7 @@ import scala.concurrent.Future
 
 trait WebsocketListener[PickleType] {
   def onConnect(): Unit
-  def onMessage(value: PickleType): Unit
+  def onMessage(value: PickleType): Future[Unit]
   def onClose(): Unit
 }
 
