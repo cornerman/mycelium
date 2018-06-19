@@ -45,24 +45,22 @@ private[mycelium] class ConnectedClient[Payload, Failure, State](
 
       case CallRequest(seqId, path, args: Payload@unchecked) =>
         val response = onRequest(clientId, state, path, args)
-        response.value match {
-          case EventualResult.Single(task) => task.runAsync.onComplete {
-            case Success(Right(value)) => outgoing ! SingleResponse(seqId, value)
-            case Success(Left(failure)) => outgoing ! FailureResponse(seqId, failure)
-            case Failure(t) => outgoing ! ErrorResponse(seqId)
+        response.task.runOnComplete {
+          case Success(response) => response match {
+            case Right(result) => result match {
+              case EventualResult.Single(value) => outgoing ! SingleResponse(seqId, value)
+              case EventualResult.Stream(observable) =>
+                cancelables += observable
+                  .map(StreamResponse(seqId, _))
+                  .endWith(StreamCloseResponse(seqId) :: Nil)
+                  .doOnError(t => outgoing ! ErrorResponse(seqId))
+                  .foreach(outgoing ! _)
+            }
+            case Left(failure) => outgoing ! FailureResponse(seqId, failure)
           }
-          case EventualResult.Stream(task) =>
-            cancelables += Observable.fromTask(task)
-              .flatMap {
-                case Right(observable) =>
-                  observable
-                    .map(StreamResponse(seqId, _))
-                    .endWith(StreamCloseResponse(seqId) :: Nil)
-                case Left(failure) => Observable(FailureResponse(seqId, failure))
-              }
-              .doOnError(t => outgoing ! ErrorResponse(seqId))
-              .foreach(outgoing ! _)
+          case Failure(t) => outgoing ! ErrorResponse(seqId)
         }
+
         context.become(safeWithState(response.state))
 
       case Stop => stopActor(state, DisconnectReason.Stopped)
