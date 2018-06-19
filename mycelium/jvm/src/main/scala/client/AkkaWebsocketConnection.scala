@@ -28,13 +28,13 @@ class AkkaWebsocketConnection[PickleType](bufferSize: Int, overflowStrategy: Ove
 
   //TODO return result signaling closed
   def run(location: String, wsConfig: WebsocketClientConfig, pingMessage: PickleType, listener: WebsocketListener[PickleType]) = {
-    val incoming = Sink.foreach[Message] { message =>
-      builder.unpack(message).onComplete { //TODO we are breaking the order here, better sequence the future[m] inside the sink? foldasync?
-        case Success(value) => value match {
-          case Some(value) => listener.onMessage(value)
-          case None => scribe.warn(s"Ignoring websocket message. Builder does not support message ($message)")
-        }
-        case Failure(t) => scribe.warn(s"Ignoring websocket message. Builder failed to unpack message ($message): $t")
+    val incoming = Sink.foldAsync[Unit, Message](()) { (_, message) =>
+      builder.unpack(message).flatMap {
+        case Some(value) =>
+          listener.onMessage(value)
+        case None =>
+          scribe.warn(s"Ignoring websocket message. Builder does not support message ($message)")
+          Future.successful(())
       }
     }
 

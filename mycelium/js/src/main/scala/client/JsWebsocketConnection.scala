@@ -62,6 +62,7 @@ class JsWebsocketConnection[PickleType](implicit builder: JsMessageBuilder[Pickl
       listener.onClose()
     }
 
+    var currentMessageAck = Future.successful(())
     websocket.onmessage = { (e: MessageEvent) =>
       keepAliveTracker.acknowledgeTraffic()
 
@@ -74,7 +75,7 @@ class JsWebsocketConnection[PickleType](implicit builder: JsMessageBuilder[Pickl
 
       value.onComplete {
         case Success(value) => value match {
-          case Some(value) => listener.onMessage(value)
+          case Some(value) => currentMessageAck = currentMessageAck.flatMap(_ => listener.onMessage(value))
           case None => scribe.warn(s"Ignoring websocket message. Builder does not support message (${e.data})")
         }
         case Failure(t) => scribe.warn(s"Ignoring websocket message. Builder failed to unpack message (${e.data}): $t")
