@@ -26,24 +26,19 @@ object WebsocketServerFlow {
     val connectedClientActor = system.actorOf(Props(new ConnectedClient(handler)))
 
     val incoming: Sink[Message, NotUsed] =
-      Flow[Message].mapAsync(parallelism = 1) {
+      Flow[Message].mapAsync(parallelism = config.parallelism) {
         case m: Message =>
           builder.unpack(m)
-            .map(_.toRight(s"Builder does not support message: $m"))
-            .recover { case NonFatal(t) => Left(s"Builder threw exception: $t") }
-      }.mapConcat { unpackedValue =>
-        val result = for {
-          value <- unpackedValue.right
-          msg <- deserializer.deserialize(value).left.map(t => s"Deserializer failed: $t").right
-        } yield msg
-
-        result match {
-          case Right(res) =>
-            res :: Nil
-          case Left(err) =>
-            scribe.warn(s"Ignoring websocket message. $err")
-            Nil
-        }
+            .map {
+              case Some(m) => deserializer.deserialize(m).left.map(t => s"Deserializer failed: $t")
+              case None => Left(s"Builder does not support message: $m")
+            }
+            .recover { case NonFatal(t) => Left(s"Ignoring incoming websocket message. Builder threw exception: $t") }
+      }.mapConcat {
+        case Right(msg) => msg :: Nil
+        case Left(err) =>
+          scribe.warn(s"Ignoring incoming websocket message. $err")
+          Nil
       }.to(Sink.actorRef[ClientMessage[Payload]](connectedClientActor, ConnectedClient.Stop))
 
     val outgoing: Source[Message, NotUsed] =

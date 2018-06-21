@@ -32,7 +32,7 @@ class MyceliumRealSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAft
   type Failure = Int
   type State = String
 
-  val config = WebsocketServerConfig(bufferSize = 5, overflowStrategy = OverflowStrategy.fail)
+  val config = WebsocketServerConfig(bufferSize = 5, overflowStrategy = OverflowStrategy.fail, parallelism = 2)
   val handler = new StatelessRequestHandler[Payload, Failure] {
     def onRequest(client: ClientId, path: List[String], payload: Payload) = path match {
       case "single" :: Nil => Response(Task(EventualResult.Single(payload)))

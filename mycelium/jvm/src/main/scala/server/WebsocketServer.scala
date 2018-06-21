@@ -7,7 +7,7 @@ import monix.execution.{Scheduler => MonixScheduler}
 import mycelium.core._
 import mycelium.core.message._
 
-case class WebsocketServerConfig(bufferSize: Int, overflowStrategy: OverflowStrategy)
+case class WebsocketServerConfig(bufferSize: Int, overflowStrategy: OverflowStrategy, parallelism: Int)
 class WebsocketServer(val flow: () => WebsocketServerFlow.Type)
 object WebsocketServer {
   def apply[PickleType, Failure, State](
