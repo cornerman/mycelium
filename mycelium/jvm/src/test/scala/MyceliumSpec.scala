@@ -44,7 +44,7 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAl
   }
 
   "server" in {
-    val config = WebsocketServerConfig(bufferSize = 5, overflowStrategy = OverflowStrategy.fail)
+    val config = WebsocketServerConfig(bufferSize = 5, overflowStrategy = OverflowStrategy.fail, parallelism = 2)
     val handler = new StatelessRequestHandler[Payload, Failure] {
       def onRequest(client: ClientId, path: List[String], payload: Payload) = Response(Task(EventualResult.Single(payload)))
     }
@@ -61,7 +61,7 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAl
 
     val (_, received) = flow.runWith(Source(msg :: Nil), Sink.head)
     val response = received.flatMap { msg =>
-      builder.unpack(msg).map(_.map(s => deserializer.deserialize(s).right.get))
+      builder.unpack(msg).map(_.flatMap(s => deserializer.deserialize(s).toOption))
     }
 
     val expected = SingleResponse(1, payloadValue)

@@ -36,6 +36,7 @@ private[mycelium] class ConnectedClient[Payload, Failure, State](
     }
     def safeWithState(state: Future[State]): Receive = {
       state.failed.foreach { t =>
+        scribe.info("Shutting down actor, because the state future failed", t)
         stopActor(state, DisconnectReason.StateFailed(t))
       }
       withState(state)

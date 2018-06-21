@@ -5,11 +5,11 @@ import monix.eval.Task
 
 import scala.concurrent.Future
 
-sealed trait EventualResult[+Payload, +T] extends Any
+sealed trait EventualResult[+ErrorType, +Payload] extends Any
 object EventualResult {
-  case class Error[T](failure: T) extends AnyVal with EventualResult[T, Nothing]
-  case class Single[T](value: T) extends AnyVal with EventualResult[Nothing, T]
-  case class Stream[T](observable: Observable[T]) extends AnyVal with EventualResult[Nothing, T]
+  case class Error[Payload](failure: Payload) extends AnyVal with EventualResult[Payload, Nothing]
+  case class Single[Payload](value: Payload) extends AnyVal with EventualResult[Nothing, Payload]
+  case class Stream[Payload](observable: Observable[Payload]) extends AnyVal with EventualResult[Nothing, Payload]
 }
 
 case class HandlerResponse[Payload, ErrorType, State](state: Future[State], task: Task[EventualResult[ErrorType, Payload]])
