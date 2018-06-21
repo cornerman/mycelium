@@ -97,7 +97,7 @@ class WebsocketClientWithPayload[PickleType, Payload, Failure](
     promise.future
   }
 
-  def run(location: String): Unit = ws.run(location, wsConfig, serializer.serialize(Ping()), new WebsocketListener[PickleType] {
+  def run(location: String): Unit = ws.run(location, wsConfig, serializer.serialize(Ping), new WebsocketListener[PickleType] {
     def onConnect() = {
       val _ = subjects.connected.onNext(())
     }
@@ -114,7 +114,7 @@ class WebsocketClientWithPayload[PickleType, Payload, Failure](
               scribe.warn("Cannot push further messages, received Stop.")
               Future.failed(RequestException.StoppedDownstream)
           }
-          case Pong() =>
+          case Pong =>
             Future.successful(())
         }
         case Left(error) =>
