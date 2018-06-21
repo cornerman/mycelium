@@ -41,7 +41,7 @@ private[mycelium] class ConnectedClient[Payload, Failure, State](
       withState(state)
     }
     def withState(state: Future[State]): Receive = {
-      case Ping() => outgoing ! Pong()
+      case Ping => outgoing ! Pong
 
       case CallRequest(seqId, path, args: Payload@unchecked) =>
         val response = onRequest(clientId, state, path, args)

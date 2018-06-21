@@ -92,7 +92,7 @@ class ConnectedClientSpec extends TestKit(ActorSystem("ConnectedClientSpec")) wi
     val actor = newActor()
 
     "no pong" in {
-      actor ! Ping()
+      actor ! Ping
       expectNoMessage()
     }
 
@@ -104,15 +104,15 @@ class ConnectedClientSpec extends TestKit(ActorSystem("ConnectedClientSpec")) wi
     "stop" in {
       actor ! ConnectedClient.Stop
       connectActor(actor)
-      actor ! Ping()
+      actor ! Ping
       expectNoMessage()
     }
   }
 
   "ping" - {
     "expect pong" in connectedActor { actor =>
-      actor ! Ping()
-      expectMsg(Pong())
+      actor ! Ping
+      expectMsg(Pong)
     }
   }
 
@@ -198,7 +198,7 @@ class ConnectedClientSpec extends TestKit(ActorSystem("ConnectedClientSpec")) wi
     "stops actor" in connectedActor { (actor, handler) =>
       handler.clients.size mustEqual 1
       actor ! ConnectedClient.Stop
-      actor ! Ping()
+      actor ! Ping
       expectNoMessage()
       handler.clients.size mustEqual 0
     }
