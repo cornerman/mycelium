@@ -47,16 +47,14 @@ private[mycelium] class ConnectedClient[Payload, Failure, State](
         val response = onRequest(clientId, state, path, args)
         response.task.runOnComplete {
           case Success(response) => response match {
-            case Right(result) => result match {
-              case EventualResult.Single(value) => outgoing ! SingleResponse(seqId, value)
-              case EventualResult.Stream(observable) =>
-                cancelables += observable
-                  .map(StreamResponse(seqId, _))
-                  .endWith(StreamCloseResponse(seqId) :: Nil)
-                  .doOnError(t => outgoing ! ErrorResponse(seqId))
-                  .foreach(outgoing ! _)
-            }
-            case Left(failure) => outgoing ! FailureResponse(seqId, failure)
+            case EventualResult.Single(value) => outgoing ! SingleResponse(seqId, value)
+            case EventualResult.Stream(observable) =>
+              cancelables += observable
+                .map(StreamResponse(seqId, _))
+                .endWith(StreamCloseResponse(seqId) :: Nil)
+                .doOnError(t => outgoing ! ErrorResponse(seqId))
+                .foreach(outgoing ! _)
+            case EventualResult.Error(failure) => outgoing ! FailureResponse(seqId, failure)
           }
           case Failure(t) => outgoing ! ErrorResponse(seqId)
         }

@@ -23,32 +23,32 @@ class TestRequestHandler extends StatefulRequestHandler[ByteBuffer, String, Opti
   override def onRequest(client: ClientId, state: Future[Option[String]], path: List[String], args: ByteBuffer) = {
     def deserialize[S : Pickler](ts: ByteBuffer) = Unpickle[S].fromBytes(ts)
     def serialize[S : Pickler](ts: S) = Pickle.intoBytes[S](ts)
-    def streamValues[S : Pickler](ts: List[S]) = Task(Right(Observable.fromIterable(ts.map(ts => serialize(ts)))))
-    def value[S : Pickler](ts: S) = Task(Right(serialize(ts)))
-    def valueFut[S : Pickler](ts: Future[S]) = Task.fromFuture(ts.map(ts => Right(serialize(ts))))
-    def error(ts: String) = Task(Left(ts))
+    def streamValues[S : Pickler](ts: List[S]) = Task(EventualResult.Stream(Observable.fromIterable(ts.map(ts => serialize(ts)))))
+    def value[S : Pickler](ts: S) = Task(EventualResult.Single(serialize(ts)))
+    def valueFut[S : Pickler](ts: Future[S]) = Task.fromFuture(ts.map(ts => EventualResult.Single(serialize(ts))))
+    def error(ts: String) = Task(EventualResult.Error(ts))
 
     path match {
       case "true" :: Nil =>
-        ResponseValue(state, value(true))
+        Response(state, value(true))
       case "api" :: Nil =>
         val str = deserialize[String](args)
-        ResponseValue(state, value(str.reverse))
+        Response(state, value(str.reverse))
       case "stream" :: Nil =>
-        ResponseStream(state, streamValues(4 :: 3 :: 2 :: 1 :: 0 :: Nil))
+        Response(state, streamValues(4 :: 3 :: 2 :: 1 :: 0 :: Nil))
       case "state" :: Nil =>
-        ResponseValue(state, valueFut(state))
+        Response(state, valueFut(state))
       case "state" :: "change" :: Nil =>
         val otherUser = Future.successful(Option("anon"))
-        ResponseValue(otherUser, value(true))
+        Response(otherUser, value(true))
       case "state" :: "fail" :: Nil =>
         val failure = Future.failed(new Exception("failed-state"))
-        ResponseValue(failure, value(true))
+        Response(failure, value(true))
       case "value-broken" :: Nil =>
-        ResponseValue(state, error("an error"))
+        Response(state, error("an error"))
       case "stream-broken" :: Nil =>
-        ResponseStream(state, error("an error"))
-      case _ => ResponseValue(state, error("path not found"))
+        Response(state, error("an error"))
+      case _ => Response(state, error("path not found"))
     }
   }
 
