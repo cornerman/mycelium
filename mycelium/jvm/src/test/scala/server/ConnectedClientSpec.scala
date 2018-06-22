@@ -23,10 +23,10 @@ class TestRequestHandler extends StatefulRequestHandler[ByteBuffer, String, Opti
   override def onRequest(client: ClientId, state: Future[Option[String]], path: List[String], args: ByteBuffer) = {
     def deserialize[S : Pickler](ts: ByteBuffer) = Unpickle[S].fromBytes(ts)
     def serialize[S : Pickler](ts: S) = Pickle.intoBytes[S](ts)
-    def streamValues[S : Pickler](ts: List[S]) = Task(EventualResult.Stream(Observable.fromIterable(ts.map(ts => serialize(ts)))))
-    def value[S : Pickler](ts: S) = Task(EventualResult.Single(serialize(ts)))
-    def valueFut[S : Pickler](ts: Future[S]) = Task.fromFuture(ts.map(ts => EventualResult.Single(serialize(ts))))
-    def error(ts: String) = Task(EventualResult.Error(ts))
+    def streamValues[S : Pickler](ts: List[S]) = Observable.fromIterable(ts.map(ts => Right(serialize(ts))))
+    def value[S : Pickler](ts: S) = Task(Right(serialize(ts)))
+    def valueFut[S : Pickler](ts: Future[S]) = Task.fromFuture(ts.map(ts => Right(serialize(ts))))
+    def error(ts: String) = Task(Left(ts))
 
     path match {
       case "true" :: Nil =>
