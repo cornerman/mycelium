@@ -10,7 +10,7 @@ import org.scalatest._
 import scala.concurrent.duration._
 
 class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
-  import monix.execution.Scheduler.Implicits.global
+  override implicit def executionContext = monix.execution.Scheduler.global
 
   WebSocketMock.setup()
 
@@ -26,7 +26,7 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
     val res = client.send("foo" :: "bar" :: Nil, "harals", SendType.NowOrFail, Some(30 seconds))
     val res2 = client.send("foo" :: "bar" :: Nil, "harals", SendType.WhenConnected, Some(30 seconds))
 
-    res.runAsync.failed.map(_ mustEqual RequestException.Dropped)
-    res2.runAsync.value mustEqual None
+    res2.firstL.runAsync.value mustEqual None
+    res.lastL.runAsync.failed.map(_ mustEqual RequestException.Dropped)
   }
 }

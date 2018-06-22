@@ -40,13 +40,13 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAl
     val res2 = client.send("foo" :: "bar" :: Nil, 1, SendType.WhenConnected, None)
 
     res.failed.map(_ mustEqual RequestException.Dropped)
-    res2.runAsync.value mustEqual None
+    res2.firstL.runAsync.value mustEqual None
   }
 
   "server" in {
     val config = WebsocketServerConfig(bufferSize = 5, overflowStrategy = OverflowStrategy.fail, parallelism = 2)
     val handler = new StatelessRequestHandler[Payload, Failure] {
-      def onRequest(client: ClientId, path: List[String], payload: Payload) = Response(Task(EventualResult.Single(payload)))
+      def onRequest(client: ClientId, path: List[String], payload: Payload) = Response(Task(Right(payload)))
     }
 
     val server = WebsocketServer.withPayload(config, handler)

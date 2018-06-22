@@ -1,7 +1,6 @@
 package mycelium.server
 
 import akka.actor.{Actor, ActorRef}
-import monix.reactive.Observable
 import monix.execution.cancelables.CompositeCancelable
 import monix.execution.{Scheduler => MonixScheduler}
 import mycelium.core.message._
@@ -46,18 +45,31 @@ private[mycelium] class ConnectedClient[Payload, Failure, State](
 
       case CallRequest(seqId, path, args: Payload@unchecked) =>
         val response = onRequest(clientId, state, path, args)
-        response.task.runOnComplete {
-          case Success(response) => response match {
-            case EventualResult.Single(value) => outgoing ! SingleResponse(seqId, value)
-            case EventualResult.Stream(observable) =>
-              cancelables += observable
-                .map(StreamResponse(seqId, _))
-                .endWith(StreamCloseResponse(seqId) :: Nil)
-                .doOnError(t => outgoing ! ErrorResponse(seqId))
-                .foreach(outgoing ! _)
-            case EventualResult.Error(failure) => outgoing ! FailureResponse(seqId, failure)
-          }
-          case Failure(t) => outgoing ! ErrorResponse(seqId)
+        response match {
+          case HandlerResponse.Single(state, task) =>
+            cancelables += task
+              .runOnComplete {
+                case Success(value) => value match {
+                  case Right(value) => outgoing ! SingleResponse(seqId, value)
+                  case Left(err) => outgoing ! FailureResponse(seqId, err)
+                }
+                case Failure(t) =>
+                  scribe.warn("Response task threw exception", t)
+                  outgoing ! ErrorResponse(seqId)
+              }
+
+          case HandlerResponse.Stream(state, observable) =>
+            cancelables += observable
+              .map {
+                case Right(value) => StreamResponse(seqId, value)
+                case Left(value) => FailureResponse(seqId, value)
+              }
+              .endWith(StreamCloseResponse(seqId) :: Nil)
+              .doOnError { t =>
+                scribe.warn("Response stream threw exception", t)
+                outgoing ! ErrorResponse(seqId)
+              }
+              .foreach(outgoing ! _)
         }
 
         context.become(safeWithState(response.state))

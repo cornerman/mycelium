@@ -35,8 +35,8 @@ class MyceliumRealSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAft
   val config = WebsocketServerConfig(bufferSize = 5, overflowStrategy = OverflowStrategy.fail, parallelism = 2)
   val handler = new StatelessRequestHandler[Payload, Failure] {
     def onRequest(client: ClientId, path: List[String], payload: Payload) = path match {
-      case "single" :: Nil => Response(Task(EventualResult.Single(payload)))
-      case "stream" :: Nil => Response(Task(EventualResult.Stream(Observable(1,2,3,4))))
+      case "single" :: Nil => Response(Task(Right(payload)))
+      case "stream" :: Nil => Response(Observable(1,2,3,4).map(Right.apply))
       case _ => ???
     }
   }
@@ -52,13 +52,12 @@ class MyceliumRealSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAft
 
     "single result" in {
       val res = client.send("single" :: Nil, 1, SendType.WhenConnected, Some(30 seconds))
-      res.flatMap(_.right.get.lastL).runAsync.map(_ mustEqual 1)
+      res.map(_.right.get).lastL.runAsync.map(_ mustEqual 1)
     }
 
     "stream result" in {
       val res = client.send("stream" :: Nil, 0, SendType.WhenConnected, Some(30 seconds))
-      Observable.fromTask(res).flatMap(_.right.get)
-        .foldLeftL[List[Payload]](Nil)((l,i) => l :+ i).runAsync.map(l => l mustEqual List(1,2,3,4))
+      res.map(_.right.get).toListL.runAsync.map(l => l mustEqual List(1,2,3,4))
     }
   }
 }
