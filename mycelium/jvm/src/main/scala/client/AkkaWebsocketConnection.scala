@@ -11,6 +11,7 @@ import monix.execution.Scheduler
 import mycelium.core.AkkaMessageBuilder
 
 import scala.concurrent.{Future, Promise}
+import scala.util.{Failure, Success}
 
 class AkkaWebsocketConnection[PickleType](bufferSize: Int, overflowStrategy: OverflowStrategy)(implicit system: ActorSystem, scheduler: Scheduler, materializer: ActorMaterializer, builder: AkkaMessageBuilder[PickleType]) extends WebsocketConnection[PickleType] {
 

@@ -4,6 +4,7 @@ import chameleon._
 import monix.execution.{Ack, Scheduler}
 import monix.reactive.{Observable, Observer}
 import monix.reactive.subjects.PublishSubject
+import monix.eval.Task
 import mycelium.core.message._
 
 import scala.concurrent.duration._
@@ -15,7 +16,7 @@ case class WebsocketObservable(connected: Observable[Unit], disconnected: Observ
 class WebsocketClientWithPayload[PickleType, Payload, Failure](
   wsConfig: WebsocketClientConfig,
   ws: WebsocketConnection[PickleType],
-  requestMap: RequestMap[Either[Failure, Payload]])(implicit
+  requestMap: RequestMap[Either[Failure, Observable[Payload]]])(implicit
   scheduler: Scheduler,
   serializer: Serializer[ClientMessage[Payload], PickleType],
   deserializer: Deserializer[ServerMessage[Payload, Failure], PickleType]) {
@@ -29,28 +30,46 @@ class WebsocketClientWithPayload[PickleType, Payload, Failure](
   val _ = subjects.messages.groupBy(_.seqId).subscribe { observable =>
     val seqId = observable.key
     requestMap.get(seqId) match {
-      case Some(subject) =>
+      case Some(promise) =>
         val _ = observable.subscribe(new Observer[ServerMessage[Payload, Failure] with ServerResponse] {
-          override def onError(ex: Throwable): Unit = requestMap.get(seqId).foreach(_.onError(ex))
-          override def onComplete(): Unit = requestMap.get(seqId).foreach(_.onComplete())
+          private var subject: Option[PublishSubject[Payload]] = None
 
-          override def onNext(elem: ServerMessage[Payload, Failure] with ServerResponse): Future[Ack] = elem match {
-            case SingleResponse(_, result) =>
-              val _ = subject onNext Right(result)
-              subject.onComplete()
-              Ack.Stop
-            case StreamResponse(_, result) =>
-              subject onNext Right(result)
-            case StreamCloseResponse(seqId) =>
-              subject.onComplete()
-              Ack.Stop
-            case FailureResponse(seqId, msg) =>
-              val _ = subject onNext Left(msg)
-              subject.onComplete()
-              Ack.Stop
-            case ErrorResponse(seqId) =>
-              subject onError RequestException.ErrorResponse
-              Ack.Stop
+          override def onError(ex: Throwable): Unit = subject.foreach(_.onError(ex))
+          override def onComplete(): Unit = subject.foreach(_.onComplete())
+
+          override def onNext(elem: ServerMessage[Payload, Failure] with ServerResponse): Future[Ack] = subject match {
+            case None => elem match {
+              case SingleResponse(_, result) =>
+                promise trySuccess Right(Observable(result))
+                Ack.Stop
+              case StreamResponse(_, result) =>
+                val newSubject = PublishSubject[Payload]()
+                promise trySuccess Right(newSubject)
+                subject = Some(newSubject)
+                newSubject.onNext(result)
+              case StreamCloseResponse(seqId) =>
+                promise trySuccess Right(Observable())
+                Ack.Stop
+              case FailureResponse(seqId, msg) =>
+                promise trySuccess Left(msg)
+                Ack.Stop
+              case ErrorResponse(seqId) =>
+                promise tryFailure RequestException.ErrorResponse
+                Ack.Stop
+            }
+            case Some(subject) => elem match {
+              case StreamResponse(_, result) =>
+                subject.onNext(result)
+              case StreamCloseResponse(seqId) =>
+                subject.onComplete()
+                Ack.Stop
+              case ErrorResponse(seqId) =>
+                subject.onError(RequestException.ErrorResponse)
+                Ack.Stop
+              case response =>
+                subject.onError(RequestException.IllegalResponse(response))
+                Ack.Stop
+            }
           }
         })
       case None =>
@@ -64,18 +83,18 @@ class WebsocketClientWithPayload[PickleType, Payload, Failure](
 
   val observable = WebsocketObservable(subjects.connected, subjects.disconnected)
 
-  def send(path: List[String], payload: Payload, sendType: SendType, requestTimeout: Option[FiniteDuration]): Observable[Either[Failure, Payload]] = Observable.defer {
-    val (seqId, subject) = requestMap.open()
+  def send(path: List[String], payload: Payload, sendType: SendType, requestTimeout: Option[FiniteDuration]): Task[Either[Failure, Observable[Payload]]] = Task.deferFuture {
+    val (seqId, promise) = requestMap.open()
     val request = CallRequest(seqId, path, payload)
     val pickledRequest = serializer.serialize(request)
     val message = sendType match {
-      case SendType.NowOrFail => WebsocketMessage.Direct(pickledRequest, subject, requestTimeout)
-      case SendType.WhenConnected(priority) => WebsocketMessage.Buffered(pickledRequest, subject, requestTimeout, priority)
+      case SendType.NowOrFail => WebsocketMessage.Direct(pickledRequest, promise, requestTimeout)
+      case SendType.WhenConnected(priority) => WebsocketMessage.Buffered(pickledRequest, promise, requestTimeout, priority)
     }
 
     ws.send(message)
 
-    subject
+    promise.future
   }
 
   def run(location: String): Unit = ws.run(location, wsConfig, serializer.serialize(Ping), new WebsocketListener[PickleType] {
@@ -121,7 +140,7 @@ object WebsocketClient {
     scheduler: Scheduler,
     serializer: Serializer[ClientMessage[Payload], PickleType],
     deserializer: Deserializer[ServerMessage[Payload, Failure], PickleType]) = {
-    val requestMap = new RequestMap[Either[Failure, Payload]]
+    val requestMap = new RequestMap[Either[Failure, Observable[Payload]]]
     new WebsocketClientWithPayload(config, connection, requestMap)
   }
 }

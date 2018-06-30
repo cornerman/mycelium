@@ -5,13 +5,14 @@ import monix.eval.Task
 
 import scala.concurrent.Future
 
-sealed trait HandlerResponse[Payload, ErrorType, State] {
-  def state: Future[State]
+sealed trait EventualResult[+ErrorType, +Payload] extends Any
+object EventualResult {
+  case class Error[Payload](failure: Payload) extends AnyVal with EventualResult[Payload, Nothing]
+  case class Single[Payload](value: Payload) extends AnyVal with EventualResult[Nothing, Payload]
+  case class Stream[Payload](observable: Observable[Payload]) extends AnyVal with EventualResult[Nothing, Payload]
 }
-object HandlerResponse {
-  case class Single[Payload, ErrorType, State](state: Future[State], result: Task[Either[ErrorType, Payload]]) extends HandlerResponse[Payload, ErrorType, State]
-  case class Stream[Payload, ErrorType, State](state: Future[State], result: Observable[Either[ErrorType, Payload]]) extends HandlerResponse[Payload, ErrorType, State]
-}
+
+case class HandlerResponse[Payload, ErrorType, State](state: Future[State], task: Task[EventualResult[ErrorType, Payload]])
 
 trait RequestHandler[Payload, ErrorType, State] {
   type Response = HandlerResponse[Payload, ErrorType, State]
@@ -35,13 +36,11 @@ trait RequestHandler[Payload, ErrorType, State] {
 }
 
 trait StatefulRequestHandler[Payload, ErrorType, State] extends RequestHandler[Payload, ErrorType, State] {
-  def Response(state: Future[State], task: Task[Either[ErrorType, Payload]]): Response = HandlerResponse.Single(state, task)
-  def Response(state: Future[State], observable: Observable[Either[ErrorType, Payload]]): Response = HandlerResponse.Stream(state, observable)
+  def Response(state: Future[State], task: Task[EventualResult[ErrorType, Payload]]): Response = HandlerResponse(state, task)
 }
 
 trait StatelessRequestHandler[Payload, ErrorType] extends RequestHandler[Payload, ErrorType, Unit] {
-  def Response(task: Task[Either[ErrorType, Payload]]): Response = HandlerResponse.Single(initialState, task)
-  def Response(observable: Observable[Either[ErrorType, Payload]]): Response = HandlerResponse.Stream(initialState, observable)
+  def Response(task: Task[EventualResult[ErrorType, Payload]]): Response = HandlerResponse(initialState, task)
 
   def onClientConnect(client: ClientId): Unit = {}
   def onClientDisconnect(client: ClientId, reason: DisconnectReason): Unit = {}
