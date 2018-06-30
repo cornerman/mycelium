@@ -60,10 +60,10 @@ class WebsocketClientWithPayload[PickleType, Payload, Failure](
             case Some(subject) => elem match {
               case StreamResponse(_, result) =>
                 subject.onNext(result)
-              case StreamCloseResponse(seqId) =>
+              case StreamCloseResponse(_) =>
                 subject.onComplete()
                 Ack.Stop
-              case ErrorResponse(seqId) =>
+              case ErrorResponse(_) =>
                 subject.onError(RequestException.ErrorResponse)
                 Ack.Stop
               case response =>

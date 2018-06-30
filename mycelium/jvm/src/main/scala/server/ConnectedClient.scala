@@ -53,11 +53,16 @@ private[mycelium] class ConnectedClient[Payload, Failure, State](
               cancelables += observable
                 .map(StreamResponse(seqId, _))
                 .endWith(StreamCloseResponse(seqId) :: Nil)
-                .doOnError(t => outgoing ! ErrorResponse(seqId))
+                .doOnError { t =>
+                  scribe.warn(s"Unexpected exception in response stream, sending error downstream.", t)
+                  outgoing ! ErrorResponse(seqId)
+                }
                 .foreach(outgoing ! _)
             case EventualResult.Error(failure) => outgoing ! FailureResponse(seqId, failure)
           }
-          case Failure(t) => outgoing ! ErrorResponse(seqId)
+          case Failure(t) =>
+            scribe.warn(s"Unexpected exception in response future, sending error downstream.", t)
+            outgoing ! ErrorResponse(seqId)
         }
 
         context.become(safeWithState(response.state))
