@@ -8,7 +8,7 @@ import mycelium.core.message._
 
 import scala.concurrent.{Future, Promise}
 
-class RequestObserver[Payload, ErrorType](promise: Promise[EventualResult[Payload, ErrorType]]) extends Observer[ServerMessage[Payload, ErrorType] with ServerResponse] {
+class ResponseObserver[Payload, ErrorType](promise: Promise[EventualResult[Payload, ErrorType]]) extends Observer[ServerMessage[Payload, ErrorType] with ServerResponse] {
   private var subjectOpt: Option[PublishSubject[Payload]] = None
 
   override def onError(ex: Throwable): Unit = subjectOpt.foreach(_.onError(ex))

@@ -52,7 +52,7 @@ class WebsocketClientWithPayload[PickleType, Payload, ErrorType](
     val seqId = observable.key
     requestMap.get(seqId) match {
       case Some(promise) =>
-        observable.subscribe(new RequestObserver(promise))
+        observable.subscribe(new ResponseObserver(promise))
         ()
       case None =>
         // signal to grouped observable that we do not need any elements from this group
