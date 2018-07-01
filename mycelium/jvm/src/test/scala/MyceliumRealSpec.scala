@@ -46,9 +46,7 @@ class MyceliumRealSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAft
   Http().bindAndHandle(route, interface = "0.0.0.0", port = port)
 
   "client with akka" - {
-    val client = WebsocketClient.withPayload[ByteBuffer, Payload, ErrorType](new AkkaWebsocketConnection, WebsocketClientConfig())
-
-    client.run(s"ws://localhost:$port")
+    val client = WebsocketClient.withPayload[ByteBuffer, Payload, ErrorType](s"ws://localhost:$port", new AkkaWebsocketConnection, WebsocketClientConfig())
 
     "single result" in {
       val res = client.send("single" :: Nil, 1, SendType.WhenConnected, Some(10 seconds))

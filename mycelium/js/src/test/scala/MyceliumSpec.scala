@@ -18,10 +18,7 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
   type ErrorType = Int
 
   "client" in {
-    val client = WebsocketClient.withPayload[ByteBuffer, Payload, ErrorType](
-      new JsWebsocketConnection, WebsocketClientConfig())
-
-    // client.run("ws://hans")
+    val client = WebsocketClient.withPayload[ByteBuffer, Payload, ErrorType]("ws://localhost", new JsWebsocketConnection, WebsocketClientConfig())
 
     val res = client.send("foo" :: "bar" :: Nil, "harals", SendType.NowOrFail, Some(30 seconds))
     val res2 = client.send("foo" :: "bar" :: Nil, "harals", SendType.WhenConnected, Some(30 seconds))

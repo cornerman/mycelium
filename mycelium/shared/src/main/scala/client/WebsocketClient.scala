@@ -15,20 +15,13 @@ import scala.concurrent.duration._
 case class WebsocketClientConfig(minReconnectDelay: FiniteDuration = 1.seconds, maxReconnectDelay: FiniteDuration = 60.seconds, delayReconnectFactor: Double = 1.3, connectingTimeout: FiniteDuration = 5.seconds, pingInterval: FiniteDuration = 45.seconds)
 
 class WebsocketClientWithPayload[PickleType, Payload, ErrorType](
-  wsConfig: WebsocketClientConfig,
-  ws: WebsocketConnection[PickleType],
+  reactiveConn: ReactiveWebsocketConnection[PickleType],
   requestMap: RequestMap[EventualResult[Payload, ErrorType]])(implicit
   scheduler: Scheduler,
   serializer: Serializer[ClientMessage[Payload], PickleType],
-  deserializer: Deserializer[ServerMessage[Payload, ErrorType], PickleType]) {
+  deserializer: Deserializer[ServerMessage[Payload, ErrorType], PickleType]) extends Cancelable {
 
-  private object subjects {
-    val connected = PublishSubject[Boolean]
-    val incomingMessages = PublishSubject[Future[Option[PickleType]]]
-    val outgoingMessages = ConcurrentSubject.publish[WebsocketMessage[PickleType]]
-  }
-
-  private val responseMessages: Observable[ServerMessage[Payload, ErrorType] with ServerResponse] = subjects.incomingMessages.concatMap { rawMessage =>
+  private val responseMessages: Observable[ServerMessage[Payload, ErrorType] with ServerResponse] = reactiveConn.incomingMessages.concatMap { rawMessage =>
     Observable.fromFuture(rawMessage).flatMap {
       case Some(value) => deserializer.deserialize(value) match {
         case Right(response) => response match {
@@ -48,22 +41,38 @@ class WebsocketClientWithPayload[PickleType, Payload, ErrorType](
     }
   }
 
-  responseMessages.groupBy(_.seqId).subscribe { observable =>
-    val seqId = observable.key
-    requestMap.get(seqId) match {
-      case Some(promise) =>
-        observable.subscribe(new ResponseObserver(promise))
-        ()
-      case None =>
-        // signal to grouped observable that we do not need any elements from this group
-        observable.take(0).subscribe(_ => ???)
-        scribe.warn(s"Ignoring incoming messages. Unknown sequence id: $seqId")
+  private val outgoingMessages = ConcurrentSubject.publish[WebsocketMessage[PickleType]]
+
+  private val cancelable = {
+    val cancelable = CompositeCancelable()
+    cancelable += reactiveConn.cancelable
+
+    cancelable += responseMessages.groupBy(_.seqId).subscribe { observable =>
+      val seqId = observable.key
+      requestMap.get(seqId) match {
+        case Some(promise) =>
+          observable.subscribe(new ResponseObserver(promise))
+        case None =>
+          scribe.warn(s"Ignoring incoming messages. Unknown sequence id: $seqId")
+          // signal to grouped observable that we subscribe and it should not cache anymore
+          observable.take(0).subscribe(_ => ???)
+      }
+
+      Ack.Continue
     }
 
-    Ack.Continue
+    val messageSender = new WebsocketMessageSender[PickleType](reactiveConn.outgoingMessages)
+    cancelable += Observable.merge(
+      outgoingMessages.map(SenderAction.SendMessage.apply),
+      reactiveConn.connected.map(SenderAction.ConnectionChanged.apply)
+    ).subscribe(messageSender)
+
+    cancelable
   }
 
-  val connected: Observable[Boolean] = subjects.connected
+  val connected: Observable[Boolean] = connected
+
+  def cancel(): Unit = cancelable.cancel()
 
   def send(path: List[String], payload: Payload, sendType: SendType, requestTimeout: Option[FiniteDuration]): Task[EventualResult[Payload, ErrorType]] = Task.deferFuture {
     val (seqId, promise) = requestMap.open()
@@ -74,45 +83,31 @@ class WebsocketClientWithPayload[PickleType, Payload, ErrorType](
       case SendType.WhenConnected(priority) => WebsocketMessage.Buffered(pickledRequest, promise, requestTimeout, priority)
     }
 
-    subjects.outgoingMessages.onNext(message)
+    outgoingMessages.onNext(message)
 
     promise.future
-  }
-
-  def run(location: String): Cancelable = {
-    val reactiveConn = ws.run(location, wsConfig, serializer.serialize(Ping))
-
-    val cancelable = CompositeCancelable()
-    cancelable += reactiveConn.cancelable
-    cancelable += reactiveConn.connected.subscribe(subjects.connected)
-    cancelable += reactiveConn.incomingMessages.subscribe(subjects.incomingMessages)
-
-    val messageSender = new WebsocketMessageSender[PickleType](reactiveConn.outgoingMessages)
-    cancelable += Observable.merge(
-      subjects.outgoingMessages.map(SenderAction.SendMessage.apply),
-      reactiveConn.connected.map(SenderAction.ConnectionChanged.apply)
-    ).subscribe(messageSender)
-
-    cancelable
   }
 }
 
 object WebsocketClient {
   def apply[PickleType, ErrorType](
+    location: String,
     connection: WebsocketConnection[PickleType],
     config: WebsocketClientConfig)(implicit
     scheduler: Scheduler,
     serializer: Serializer[ClientMessage[PickleType], PickleType],
     deserializer: Deserializer[ServerMessage[PickleType, ErrorType], PickleType]) =
-    withPayload[PickleType, PickleType, ErrorType](connection, config)
+    withPayload[PickleType, PickleType, ErrorType](location, connection, config)
 
   def withPayload[PickleType, Payload, ErrorType](
+    location: String,
     connection: WebsocketConnection[PickleType],
     config: WebsocketClientConfig)(implicit
     scheduler: Scheduler,
     serializer: Serializer[ClientMessage[Payload], PickleType],
     deserializer: Deserializer[ServerMessage[Payload, ErrorType], PickleType]) = {
     val requestMap = new RequestMap[EventualResult[Payload, ErrorType]]
-    new WebsocketClientWithPayload(config, connection, requestMap)
+    val reactiveConn = connection.run(location, config, serializer.serialize(Ping))
+    new WebsocketClientWithPayload(reactiveConn, requestMap)
   }
 }
