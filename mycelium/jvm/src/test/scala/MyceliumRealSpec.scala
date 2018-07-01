@@ -58,7 +58,10 @@ class MyceliumRealSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAft
 
     "stream result" in {
       val res = client.send("stream" :: Nil, 0, SendType.WhenConnected, Some(11 seconds))
-      Observable.fromTask(res).flatMap(_.asInstanceOf[EventualResult.Stream[Payload]].observable).toListL.runAsync.map(l => l mustEqual List(1,2,3,4))
+      res.runAsync.flatMap { r =>
+        Thread.sleep(2000)
+        r.asInstanceOf[EventualResult.Stream[Payload]].observable.toListL.runAsync.map(l => l mustEqual List(1,2,3,4))
+      }
     }
   }
 }

@@ -1,7 +1,7 @@
 package mycelium.client
 
-import monix.execution.Ack
-import monix.reactive.observers.CacheUntilConnectSubscriber
+import monix.execution.{Ack, Scheduler}
+import monix.reactive.observables.ConnectableObservable
 import monix.reactive.subjects.PublishSubject
 import monix.reactive.{Observable, Observer}
 import mycelium.core.EventualResult
@@ -9,7 +9,7 @@ import mycelium.core.message._
 
 import scala.concurrent.{Future, Promise}
 
-class ResponseObserver[Payload, ErrorType](promise: Promise[EventualResult[Payload, ErrorType]]) extends Observer[ServerMessage[Payload, ErrorType] with ServerResponse] {
+class ResponseObserver[Payload, ErrorType](promise: Promise[EventualResult[Payload, ErrorType]])(implicit scheduler: Scheduler) extends Observer[ServerMessage[Payload, ErrorType] with ServerResponse] {
   @volatile private var observerOpt: Option[Observer[Payload]] = None
 
   override def onError(ex: Throwable): Unit = observerOpt.foreach(_.onError(ex))
@@ -21,12 +21,16 @@ class ResponseObserver[Payload, ErrorType](promise: Promise[EventualResult[Paylo
         promise trySuccess EventualResult.Single(result)
         Ack.Stop
       case StreamResponse(_, result) =>
-        val underlying = PublishSubject[Payload]()
-        val observer = CacheUntilConnectSubscriber(subject)
-        val observable = underlying.doAfterSubscribe(() => observer.connect())
-        observerOpt = Some(observer)
+        val source = PublishSubject[Payload]()
+        val connectObservable = ConnectableObservable.cacheUntilConnect(source = source, subject = PublishSubject[Payload]())
+        val observable = connectObservable.doAfterSubscribe { () =>
+          connectObservable.connect()
+          ()
+        }
+
         promise trySuccess EventualResult.Stream(observable)
-        observer.onNext(result)
+        observerOpt = Some(source)
+        source.onNext(result)
       case StreamCloseResponse(_) =>
         promise trySuccess EventualResult.Stream(Observable.empty)
         Ack.Stop
