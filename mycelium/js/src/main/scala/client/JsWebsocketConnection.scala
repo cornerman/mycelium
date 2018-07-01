@@ -16,8 +16,7 @@ class JsWebsocketConnection[PickleType](implicit builder: JsMessageBuilder[Pickl
   override def run(
     location: String,
     wsConfig: WebsocketClientConfig,
-    pingMessage: PickleType,
-  ): ReactiveWebsocketConnection[PickleType] = {
+    pingMessage: PickleType): ReactiveWebsocketConnection[PickleType] = {
     val connectedSubject = ConcurrentSubject.publish[Boolean]
     val incomingMessages = ConcurrentSubject.publish[Future[Option[PickleType]]]
     val outgoingMessages = PublishSubject[PickleType]

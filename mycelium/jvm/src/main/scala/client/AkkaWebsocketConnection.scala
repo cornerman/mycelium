@@ -18,8 +18,7 @@ class AkkaWebsocketConnection[PickleType](bufferSize: Int, overflowStrategy: Ove
   override def run(
     location: String,
     wsConfig: WebsocketClientConfig,
-    pingMessage: PickleType,
-  ): ReactiveWebsocketConnection[PickleType] = {
+    pingMessage: PickleType): ReactiveWebsocketConnection[PickleType] = {
     val connectedSubject = ConcurrentSubject.publish[Boolean]
     val incomingMessages = PublishSubject[Future[Option[PickleType]]]
     val outgoingMessages = PublishSubject[PickleType]
