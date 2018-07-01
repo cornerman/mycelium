@@ -31,8 +31,7 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAl
   type State = String
 
   "client" in {
-    val client = WebsocketClient.withPayload[ByteBuffer, Payload, ErrorType](
-      new AkkaWebsocketConnection(bufferSize = 100, overflowStrategy = OverflowStrategy.fail), WebsocketClientConfig())
+    val client = WebsocketClient.withPayload[ByteBuffer, Payload, ErrorType](new AkkaWebsocketConnection, WebsocketClientConfig())
 
     // client.run("ws://hans")
 

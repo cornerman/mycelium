@@ -6,14 +6,14 @@ import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.ws._
 import akka.http.scaladsl.settings.ClientConnectionSettings
 import akka.stream.scaladsl._
-import akka.stream.{ActorMaterializer, KillSwitches, OverflowStrategy}
+import akka.stream.{ActorMaterializer, KillSwitches}
 import monix.execution.{Ack, Cancelable, Scheduler}
 import monix.reactive.subjects.{ConcurrentSubject, PublishSubject}
 import mycelium.core.AkkaMessageBuilder
 
 import scala.concurrent.Future
 
-class AkkaWebsocketConnection[PickleType](bufferSize: Int, overflowStrategy: OverflowStrategy)(implicit system: ActorSystem, scheduler: Scheduler, materializer: ActorMaterializer, builder: AkkaMessageBuilder[PickleType]) extends WebsocketConnection[PickleType] {
+class AkkaWebsocketConnection[PickleType](implicit system: ActorSystem, scheduler: Scheduler, materializer: ActorMaterializer, builder: AkkaMessageBuilder[PickleType]) extends WebsocketConnection[PickleType] {
 
   override def run(
     location: String,
