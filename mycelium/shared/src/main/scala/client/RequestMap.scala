@@ -5,7 +5,7 @@ import java.util.concurrent.atomic.AtomicInteger
 
 import mycelium.core.message._
 
-import scala.concurrent.{Future, Promise, ExecutionContext}
+import scala.concurrent.{Promise, ExecutionContext}
 
 class RequestMap[T] {
   private val openRequests = new ConcurrentHashMap[SequenceId, Promise[T]]
@@ -23,8 +23,9 @@ class RequestMap[T] {
   def get(seqId: SequenceId): Option[Promise[T]] = Option(openRequests.get(seqId))
 
   def cancelAllRequests(): Unit = openRequests.values.forEach(new java.util.function.Consumer[Promise[T]] {
-    def accept(promise: Promise[T]): Unit =
+    def accept(promise: Promise[T]): Unit = {
       promise tryFailure RequestException.Canceled
       ()
+    }
   })
 }
