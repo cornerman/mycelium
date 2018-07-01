@@ -1,8 +1,7 @@
 package mycelium.client
 
 import monix.execution.Scheduler
-import monix.reactive.Observable
-import monix.reactive.subjects.{ConcurrentSubject, PublishSubject, ReplaySubject}
+import monix.reactive.subjects.{ConcurrentSubject, PublishSubject}
 import mycelium.client.raw._
 import mycelium.core.JsMessageBuilder
 import org.scalajs.dom._
@@ -18,8 +17,10 @@ class JsWebsocketConnection[PickleType](implicit builder: JsMessageBuilder[Pickl
     location: String,
     wsConfig: WebsocketClientConfig,
     pingMessage: PickleType,
-    outgoingMessages: Observable[WebsocketMessage[PickleType]],
-    listener: WebsocketListener[PickleType]): Unit = {
+  ): ReactiveWebsocketConnection[PickleType] = {
+    val connectedSubject = ConcurrentSubject.publish[Boolean]
+    val incomingMessages = ConcurrentSubject.publish[Future[Option[PickleType]]]
+    val outgoingMessages = PublishSubject[PickleType]
 
     val websocket = new ReconnectingWebSocket(location, options = new ReconnectingWebsocketOptions {
       override val maxReconnectionDelay: js.UndefOr[Int] = wsConfig.maxReconnectDelay.toMillis.toInt
@@ -29,37 +30,27 @@ class JsWebsocketConnection[PickleType](implicit builder: JsMessageBuilder[Pickl
       override val debug: js.UndefOr[Boolean] = false
     })
 
-    var isConnected = false
     val keepAliveTracker = new KeepAliveTracker(wsConfig.pingInterval, () => rawSend(websocket, pingMessage))
-    val messageSender = new WebsocketMessageSender[PickleType] {
-      override def doSend(rawMessage: PickleType) = {
-        if (isConnected) {
-          keepAliveTracker.acknowledgeTraffic()
-          rawSend(websocket, rawMessage) match {
-            case Success(_) => MessageSendStatus.Sent
-            case Failure(t) =>
-              scribe.warn(s"Websocket connection could not send message: $t")
-              MessageSendStatus.Rejected
-          }
-        } else MessageSendStatus.Disconnected
+    def doSend(rawMessage: PickleType): Unit = {
+      keepAliveTracker.acknowledgeTraffic()
+      rawSend(websocket, rawMessage) match {
+        case Success(_) => ()
+        case Failure(t) => scribe.warn(s"Websocket connection could not send message: $t")
       }
     }
 
-    val _ = outgoingMessages.foreach(messageSender.sendOrBuffer)
+    outgoingMessages.foreach(doSend)
 
     websocket.onerror = { (e: Event) =>
       scribe.warn(s"Error in websocket connection: $e")
     }
 
     websocket.onopen = { (_: Event) =>
-      listener.onConnect()
-      isConnected = true
-      messageSender.trySendBuffer()
+      connectedSubject.onNext(true)
     }
 
     websocket.onclose = { (_: Event) =>
-      isConnected = false
-      listener.onClose()
+      connectedSubject.onNext(false)
     }
 
     websocket.onmessage = { (e: MessageEvent) =>
@@ -72,8 +63,14 @@ class JsWebsocketConnection[PickleType](implicit builder: JsMessageBuilder[Pickl
         case _ => Future.successful(None)
       }
 
-      listener.onMessage(value)
+      incomingMessages.onNext(value)
     }
+
+    ReactiveWebsocketConnection(
+      connected = connectedSubject,
+      incomingMessages = incomingMessages,
+      outgoingMessages = outgoingMessages
+    )
   }
 
   private def rawSend(ws: WebSocket, rawMessage: PickleType): Try[Unit] = {

@@ -1,21 +1,18 @@
 package mycelium.client
 
-import monix.reactive.Observable
-import monix.reactive.subjects.{ConcurrentSubject, PublishSubject}
+import monix.reactive.{Observable, Observer}
 
 import scala.concurrent.Future
 
-trait WebsocketListener[PickleType] {
-  def onConnect(): Unit
-  def onMessage(value: Future[Option[PickleType]]): Unit
-  def onClose(): Unit
-}
+case class ReactiveWebsocketConnection[PickleType](
+  connected: Observable[Boolean],
+  incomingMessages: Observable[Future[Option[PickleType]]],
+  outgoingMessages: Observer[PickleType]
+)
 
 trait WebsocketConnection[PickleType] {
   private[mycelium] def run(
     location: String,
     wsConfig: WebsocketClientConfig,
-    pingMessage: PickleType,
-    messageSubject: Observable[WebsocketMessage[PickleType]],
-    listener: WebsocketListener[PickleType]): Unit
+    pingMessage: PickleType): ReactiveWebsocketConnection[PickleType]
 }

@@ -1,7 +1,6 @@
 package mycelium.server
 
 import akka.actor.{Actor, ActorRef}
-import monix.reactive.Observable
 import monix.execution.cancelables.CompositeCancelable
 import monix.execution.{Scheduler => MonixScheduler}
 import mycelium.core.message._

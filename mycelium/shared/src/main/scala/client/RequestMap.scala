@@ -23,6 +23,8 @@ class RequestMap[T] {
   def get(seqId: SequenceId): Option[Promise[T]] = Option(openRequests.get(seqId))
 
   def cancelAllRequests(): Unit = openRequests.values.forEach(new java.util.function.Consumer[Promise[T]] {
-    def accept(promise: Promise[T]): Unit = promise tryFailure RequestException.Canceled
+    def accept(promise: Promise[T]): Unit =
+      promise tryFailure RequestException.Canceled
+      ()
   })
 }

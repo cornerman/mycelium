@@ -17,7 +17,7 @@ import monix.eval.Task
 import scala.concurrent.duration._
 
 class MyceliumRealSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
-  import monix.execution.Scheduler.Implicits.global
+  override implicit def executionContext = monix.execution.Scheduler.global
 
   implicit val system = ActorSystem()
   implicit val materializer = ActorMaterializer()
@@ -51,14 +51,13 @@ class MyceliumRealSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAft
     client.run(s"ws://localhost:$port")
 
     "single result" in {
-      val res = client.send("single" :: Nil, 1, SendType.WhenConnected, Some(30 seconds))
+      val res = client.send("single" :: Nil, 1, SendType.WhenConnected, Some(10 seconds))
       res.flatMap(_.right.get.lastL).runAsync.map(_ mustEqual 1)
     }
 
     "stream result" in {
-      val res = client.send("stream" :: Nil, 0, SendType.WhenConnected, Some(30 seconds))
-      Observable.fromTask(res).flatMap(_.right.get)
-        .foldLeftL[List[Payload]](Nil)((l,i) => l :+ i).runAsync.map(l => l mustEqual List(1,2,3,4))
+      val res = client.send("stream" :: Nil, 0, SendType.WhenConnected, Some(11 seconds))
+      Observable.fromTask(res).flatMap(_.right.get).toListL.runAsync.map(l => l mustEqual List(1,2,3,4))
     }
   }
 }
