@@ -1,6 +1,8 @@
 package mycelium.client
 
 import monix.execution.Scheduler
+import monix.reactive.Observable
+import monix.reactive.subjects.{ConcurrentSubject, PublishSubject, ReplaySubject}
 import mycelium.client.raw._
 import mycelium.core.JsMessageBuilder
 import org.scalajs.dom._
@@ -12,32 +14,12 @@ import scala.util.{Failure, Success, Try}
 
 class JsWebsocketConnection[PickleType](implicit builder: JsMessageBuilder[PickleType], scheduler: Scheduler) extends WebsocketConnection[PickleType] {
 
-  private var wsOpt: Option[WebSocket] = None
-  private var keepAliveTracker: Option[KeepAliveTracker] = None
-  private def rawSend(ws: WebSocket, rawMessage: PickleType): Try[Unit] = {
-    val message = builder.pack(rawMessage)
-    (message: Any) match {
-      case s: String => Try(ws.send(s))
-      case a: ArrayBuffer => Try(ws.send(a))
-      case b: Blob => Try(ws.send(b))
-    }
-  }
-  private val messageSender = new WebsocketMessageSender[PickleType, WebSocket] {
-    override def senderOption = wsOpt
-    override def doSend(ws: WebSocket, rawMessage: PickleType) = {
-      keepAliveTracker.foreach(_.acknowledgeTraffic())
-      val tried = rawSend(ws, rawMessage)
-      tried.failed.foreach { t => scribe.warn(s"Websocket connection could not send message: $t") }
-      Future.successful(tried.isSuccess)
-    }
-  }
-
-  def send(value: WebsocketMessage[PickleType]): Unit = messageSender.sendOrBuffer(value)
-
-  def run(location: String, wsConfig: WebsocketClientConfig, pingMessage: PickleType, listener: WebsocketListener[PickleType]): Unit = if (wsOpt.isEmpty) {
-    def sendPing(): Unit = wsOpt.foreach(rawSend(_, pingMessage))
-    val keepAliveTracker = new KeepAliveTracker(wsConfig.pingInterval, sendPing _)
-    this.keepAliveTracker = Some(keepAliveTracker) //TODO should not set this here
+  override def run(
+    location: String,
+    wsConfig: WebsocketClientConfig,
+    pingMessage: PickleType,
+    outgoingMessages: Observable[WebsocketMessage[PickleType]],
+    listener: WebsocketListener[PickleType]): Unit = {
 
     val websocket = new ReconnectingWebSocket(location, options = new ReconnectingWebsocketOptions {
       override val maxReconnectionDelay: js.UndefOr[Int] = wsConfig.maxReconnectDelay.toMillis.toInt
@@ -47,22 +29,39 @@ class JsWebsocketConnection[PickleType](implicit builder: JsMessageBuilder[Pickl
       override val debug: js.UndefOr[Boolean] = false
     })
 
+    var isConnected = false
+    val keepAliveTracker = new KeepAliveTracker(wsConfig.pingInterval, () => rawSend(websocket, pingMessage))
+    val messageSender = new WebsocketMessageSender[PickleType] {
+      override def doSend(rawMessage: PickleType) = {
+        if (isConnected) {
+          keepAliveTracker.acknowledgeTraffic()
+          rawSend(websocket, rawMessage) match {
+            case Success(_) => MessageSendStatus.Sent
+            case Failure(t) =>
+              scribe.warn(s"Websocket connection could not send message: $t")
+              MessageSendStatus.Rejected
+          }
+        } else MessageSendStatus.Disconnected
+      }
+    }
+
+    val _ = outgoingMessages.foreach(messageSender.sendOrBuffer)
+
     websocket.onerror = { (e: Event) =>
       scribe.warn(s"Error in websocket connection: $e")
     }
 
     websocket.onopen = { (_: Event) =>
       listener.onConnect()
-      wsOpt = Option(websocket)
+      isConnected = true
       messageSender.trySendBuffer()
     }
 
     websocket.onclose = { (_: Event) =>
-      wsOpt = None
+      isConnected = false
       listener.onClose()
     }
 
-    var currentMessageAck = Future.successful(())
     websocket.onmessage = { (e: MessageEvent) =>
       keepAliveTracker.acknowledgeTraffic()
 
@@ -73,13 +72,16 @@ class JsWebsocketConnection[PickleType](implicit builder: JsMessageBuilder[Pickl
         case _ => Future.successful(None)
       }
 
-      value.onComplete {
-        case Success(value) => value match {
-          case Some(value) => currentMessageAck = currentMessageAck.flatMap(_ => listener.onMessage(value))
-          case None => scribe.warn(s"Ignoring websocket message. Builder does not support message (${e.data})")
-        }
-        case Failure(t) => scribe.warn(s"Ignoring websocket message. Builder failed to unpack message (${e.data}): $t")
-      }
+      listener.onMessage(value)
+    }
+  }
+
+  private def rawSend(ws: WebSocket, rawMessage: PickleType): Try[Unit] = {
+    val message = builder.pack(rawMessage)
+    (message: Any) match {
+      case s: String => Try(ws.send(s))
+      case a: ArrayBuffer => Try(ws.send(a))
+      case b: Blob => Try(ws.send(b))
     }
   }
 }

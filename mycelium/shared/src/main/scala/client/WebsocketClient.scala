@@ -1,14 +1,16 @@
 package mycelium.client
 
+import cats.effect.Concurrent
 import chameleon._
 import monix.execution.{Ack, Scheduler}
 import monix.reactive.{Observable, Observer}
-import monix.reactive.subjects.PublishSubject
+import monix.reactive.subjects.{ConcurrentSubject, PublishSubject}
 import monix.eval.Task
 import mycelium.core.message._
 
 import scala.concurrent.duration._
-import scala.concurrent.Future
+import scala.concurrent.{Future, Promise}
+import scala.util.{Failure, Success}
 
 case class WebsocketClientConfig(minReconnectDelay: FiniteDuration = 1.seconds, maxReconnectDelay: FiniteDuration = 60.seconds, delayReconnectFactor: Double = 1.3, connectingTimeout: FiniteDuration = 5.seconds, pingInterval: FiniteDuration = 45.seconds)
 case class WebsocketObservable(connected: Observable[Unit], disconnected: Observable[Unit])
@@ -22,12 +24,33 @@ class WebsocketClientWithPayload[PickleType, Payload, Failure](
   deserializer: Deserializer[ServerMessage[Payload, Failure], PickleType]) {
 
   private object subjects {
-    val connected = PublishSubject[Unit]()
-    val disconnected = PublishSubject[Unit]()
-    val messages = PublishSubject[ServerMessage[Payload, Failure] with ServerResponse]()
+    val connected = ConcurrentSubject.publish[Unit]
+    val disconnected = ConcurrentSubject.publish[Unit]
+    val incomingMessages = ConcurrentSubject.publish[Future[Option[PickleType]]]
+    val outgoingMessages = ConcurrentSubject.publish[WebsocketMessage[PickleType]]
   }
 
-  val _ = subjects.messages.groupBy(_.seqId).subscribe { observable =>
+  private val responseMessages: Observable[ServerMessage[Payload, Failure] with ServerResponse] = subjects.incomingMessages.concatMap { rawMessage =>
+    Observable.fromFuture(rawMessage).flatMap {
+      case Some(value) => deserializer.deserialize(value) match {
+        case Right(response) => response match {
+          case response: ServerResponse => Observable(response)
+          case Pong => Observable.empty
+        }
+        case Left(error) =>
+          scribe.warn(s"Ignoring message ($value). Deserializer failed: $error")
+          Observable.empty
+      }
+      case None =>
+        scribe.warn(s"Ignoring websocket message. Builder does not support message")
+        Observable.empty
+    }.onErrorHandleWith { t =>
+      scribe.warn(s"Ignoring websocket message. Builder failed to unpack message: $t")
+      Observable.empty
+    }
+  }
+
+  val _ = responseMessages.groupBy(_.seqId).subscribe { observable =>
     val seqId = observable.key
     requestMap.get(seqId) match {
       case Some(promise) =>
@@ -92,35 +115,21 @@ class WebsocketClientWithPayload[PickleType, Payload, Failure](
       case SendType.WhenConnected(priority) => WebsocketMessage.Buffered(pickledRequest, promise, requestTimeout, priority)
     }
 
-    ws.send(message)
+    val _ = subjects.outgoingMessages.onNext(message)
 
     promise.future
   }
 
-  def run(location: String): Unit = ws.run(location, wsConfig, serializer.serialize(Ping), new WebsocketListener[PickleType] {
-    def onConnect() = {
+  def run(location: String): Unit = ws.run(location, wsConfig, serializer.serialize(Ping), subjects.outgoingMessages, new WebsocketListener[PickleType] {
+    def onConnect(): Unit = {
       val _ = subjects.connected.onNext(())
     }
-    def onClose() = {
+    def onClose(): Unit = {
       requestMap.cancelAllRequests()
       val _ = subjects.disconnected.onNext(())
     }
-    def onMessage(msg: PickleType): Future[Unit] = {
-      deserializer.deserialize(msg) match {
-        case Right(response) => response match {
-          case response: ServerResponse => subjects.messages.onNext(response).flatMap {
-            case Ack.Continue => Future.successful(())
-            case Ack.Stop =>
-              scribe.warn("Cannot push further messages, received Stop.")
-              Future.failed(RequestException.StoppedDownstream)
-          }
-          case Pong =>
-            Future.successful(())
-        }
-        case Left(error) =>
-          scribe.warn(s"Ignoring message. Deserializer failed: $error")
-          Future.successful(())
-      }
+    def onMessage(msg: Future[Option[PickleType]]): Unit = {
+      val _= subjects.incomingMessages.onNext(msg)
     }
   })
 }

@@ -2,34 +2,38 @@ package mycelium.client
 
 import java.util.{Timer, TimerTask}
 
-import scala.collection.mutable
-import scala.concurrent.{Future, ExecutionContext}
+import monix.execution.Scheduler
+import monix.eval.{Callback, Task}
 
-trait WebsocketMessageSender[PickleType, Sender] {
-  protected def senderOption: Option[Sender]
-  protected def doSend(sender: Sender, message: PickleType): Future[Boolean]
+import scala.collection.mutable
+import scala.concurrent.{ExecutionContext, Future}
+import scala.util.Success
+
+sealed trait MessageSendStatus
+object MessageSendStatus {
+  case object Sent extends MessageSendStatus
+  case object Rejected extends MessageSendStatus
+  case object Disconnected extends MessageSendStatus
+}
+
+trait WebsocketMessageSender[PickleType] {
+  protected def doSend(message: PickleType): MessageSendStatus
 
   private val queue = new mutable.ArrayBuffer[WebsocketMessage.Buffered[PickleType]]
 
-  def sendOrBuffer(message: WebsocketMessage[PickleType])(implicit ec: ExecutionContext): Unit = senderOption match {
-    case Some(sender) => sendMessage(sender, message)
-    case None => message match {
+  def sendOrBuffer(message: WebsocketMessage[PickleType])(implicit scheduler: Scheduler): Unit = doSend(message.pickled) match {
+    case MessageSendStatus.Sent => startMessageTimeout(message)
+    case MessageSendStatus.Rejected => signalDroppedMessage(message)
+    case MessageSendStatus.Disconnected => message match {
       case message: WebsocketMessage.Direct[PickleType] => signalDroppedMessage(message)
       case message: WebsocketMessage.Buffered[PickleType] => queue.append(message)
     }
   }
 
-  def trySendBuffer()(implicit ec: ExecutionContext): Unit = senderOption.foreach { sender =>
+  def trySendBuffer()(implicit scheduler: Scheduler): Unit = {
     val priorityQueue = queue.sortBy(- _.priority)
-    priorityQueue.foreach(sendMessage(sender, _))
     queue.clear()
-  }
-
-  private def sendMessage(sender: Sender, message: WebsocketMessage[PickleType])(implicit ec: ExecutionContext): Unit = {
-    startMessageTimeout(message)
-    doSend(sender, message.pickled).foreach { success =>
-      if (!success) signalDroppedMessage(message)
-    }
+    priorityQueue.foreach(sendOrBuffer(_))
   }
 
   private def signalDroppedMessage(message: WebsocketMessage[PickleType]): Unit = {
@@ -37,19 +41,9 @@ trait WebsocketMessageSender[PickleType, Sender] {
     ()
   }
 
-  private def startMessageTimeout(message: WebsocketMessage[PickleType])(implicit ec: ExecutionContext): Unit = message.timeout.foreach { timeout =>
-    val timer = new Timer
-    val task: TimerTask = new TimerTask {
-      def run(): Unit = {
-        message.promise tryFailure RequestException.Timeout
-        ()
-      }
-    }
-
-    timer.schedule(task, timeout.toMillis)
-    message.promise.future.onComplete { _ =>
-      timer.cancel()
-      timer.purge()
+  private def startMessageTimeout(message: WebsocketMessage[PickleType])(implicit scheduler: Scheduler): Unit = message.timeout.foreach { timeout =>
+    Task.timer.sleep(timeout).runAsync.foreach { _ =>
+      message.promise tryFailure RequestException.Timeout
     }
   }
 }
