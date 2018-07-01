@@ -10,22 +10,22 @@ import mycelium.core.message._
 case class WebsocketServerConfig(bufferSize: Int, overflowStrategy: OverflowStrategy, parallelism: Int)
 class WebsocketServer(val flow: () => WebsocketServerFlow.Type)
 object WebsocketServer {
-  def apply[PickleType, Failure, State](
+  def apply[PickleType, ErrorType, State](
     config: WebsocketServerConfig,
-    handler: RequestHandler[PickleType, Failure, State])(implicit
+    handler: RequestHandler[PickleType, ErrorType, State])(implicit
     system: ActorSystem,
     scheduler: MonixScheduler,
-    serializer: Serializer[ServerMessage[PickleType, Failure], PickleType],
+    serializer: Serializer[ServerMessage[PickleType, ErrorType], PickleType],
     deserializer: Deserializer[ClientMessage[PickleType], PickleType],
     builder: AkkaMessageBuilder[PickleType]): WebsocketServer =
-    withPayload[PickleType, PickleType, Failure, State](config, handler)
+    withPayload[PickleType, PickleType, ErrorType, State](config, handler)
 
-  def withPayload[PickleType, Payload, Failure, State](
+  def withPayload[PickleType, Payload, ErrorType, State](
     config: WebsocketServerConfig,
-    handler: RequestHandler[Payload, Failure, State])(implicit
+    handler: RequestHandler[Payload, ErrorType, State])(implicit
     system: ActorSystem,
     scheduler: MonixScheduler,
-    serializer: Serializer[ServerMessage[Payload, Failure], PickleType],
+    serializer: Serializer[ServerMessage[Payload, ErrorType], PickleType],
     deserializer: Deserializer[ClientMessage[Payload], PickleType],
     builder: AkkaMessageBuilder[PickleType]): WebsocketServer =
     new WebsocketServer(() => WebsocketServerFlow(config, handler))

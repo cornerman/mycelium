@@ -1,18 +1,11 @@
 package mycelium.server
 
-import monix.reactive.Observable
 import monix.eval.Task
+import mycelium.core.EventualResult
 
 import scala.concurrent.Future
 
-sealed trait EventualResult[+ErrorType, +Payload] extends Any
-object EventualResult {
-  case class Error[Payload](failure: Payload) extends AnyVal with EventualResult[Payload, Nothing]
-  case class Single[Payload](value: Payload) extends AnyVal with EventualResult[Nothing, Payload]
-  case class Stream[Payload](observable: Observable[Payload]) extends AnyVal with EventualResult[Nothing, Payload]
-}
-
-case class HandlerResponse[Payload, ErrorType, State](state: Future[State], task: Task[EventualResult[ErrorType, Payload]])
+case class HandlerResponse[Payload, ErrorType, State](state: Future[State], task: Task[EventualResult[Payload, ErrorType]])
 
 trait RequestHandler[Payload, ErrorType, State] {
   type Response = HandlerResponse[Payload, ErrorType, State]
@@ -36,11 +29,11 @@ trait RequestHandler[Payload, ErrorType, State] {
 }
 
 trait StatefulRequestHandler[Payload, ErrorType, State] extends RequestHandler[Payload, ErrorType, State] {
-  def Response(state: Future[State], task: Task[EventualResult[ErrorType, Payload]]): Response = HandlerResponse(state, task)
+  def Response(state: Future[State], task: Task[EventualResult[Payload, ErrorType]]): Response = HandlerResponse(state, task)
 }
 
 trait StatelessRequestHandler[Payload, ErrorType] extends RequestHandler[Payload, ErrorType, Unit] {
-  def Response(task: Task[EventualResult[ErrorType, Payload]]): Response = HandlerResponse(initialState, task)
+  def Response(task: Task[EventualResult[Payload, ErrorType]]): Response = HandlerResponse(initialState, task)
 
   def onClientConnect(client: ClientId): Unit = {}
   def onClientDisconnect(client: ClientId, reason: DisconnectReason): Unit = {}

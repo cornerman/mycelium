@@ -6,8 +6,8 @@ import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.ws._
 import akka.http.scaladsl.settings.ClientConnectionSettings
 import akka.stream.scaladsl._
-import akka.stream.{ActorMaterializer, OverflowStrategy}
-import monix.execution.{Ack, Scheduler}
+import akka.stream.{ActorMaterializer, KillSwitches, OverflowStrategy}
+import monix.execution.{Ack, Cancelable, Scheduler}
 import monix.reactive.subjects.{ConcurrentSubject, PublishSubject}
 import mycelium.core.AkkaMessageBuilder
 
@@ -44,21 +44,23 @@ class AkkaWebsocketConnection[PickleType](bufferSize: Int, overflowStrategy: Ove
         }
     }
 
-    val websocketPingMessage = builder.pack(pingMessage)
-    val closed = Source.fromPublisher(outgoingMessages.map(builder.pack).toReactivePublisher)
+  val websocketPingMessage = builder.pack(pingMessage)
+  val killSwitch = Source.fromPublisher(outgoingMessages.map(builder.pack).toReactivePublisher)
       .keepAlive(wsConfig.pingInterval, () => websocketPingMessage)
+      .viaMat(KillSwitches.single)(Keep.right)
       .viaMat(wsFlow)(Keep.left)
-      .toMat(incoming)(Keep.right)
+      .toMat(incoming)(Keep.left)
       .run()
 
-    closed.onComplete { res =>
-      scribe.error(s"Websocket connection finally closed: $res")
+    val cancelable = Cancelable { () =>
+      killSwitch.shutdown()
     }
 
     ReactiveWebsocketConnection(
       connected = connectedSubject,
       incomingMessages = incomingMessages,
-      outgoingMessages = outgoingMessages
+      outgoingMessages = outgoingMessages,
+      cancelable = cancelable
     )
   }
 }

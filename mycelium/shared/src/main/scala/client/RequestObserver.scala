@@ -3,34 +3,35 @@ package mycelium.client
 import monix.execution.Ack
 import monix.reactive.subjects.PublishSubject
 import monix.reactive.{Observable, Observer}
+import mycelium.core.EventualResult
 import mycelium.core.message._
 
 import scala.concurrent.{Future, Promise}
 
-class RequestObserver[Payload, Failure](promise: Promise[Either[Failure, Observable[Payload]]]) extends Observer[ServerMessage[Payload, Failure] with ServerResponse] {
-  private var subject: Option[PublishSubject[Payload]] = None
+class RequestObserver[Payload, ErrorType](promise: Promise[EventualResult[Payload, ErrorType]]) extends Observer[ServerMessage[Payload, ErrorType] with ServerResponse] {
+  private var subjectOpt: Option[PublishSubject[Payload]] = None
 
-  override def onError(ex: Throwable): Unit = subject.foreach(_.onError(ex))
-  override def onComplete(): Unit = subject.foreach(_.onComplete())
+  override def onError(ex: Throwable): Unit = subjectOpt.foreach(_.onError(ex))
+  override def onComplete(): Unit = subjectOpt.foreach(_.onComplete())
 
-  override def onNext(elem: ServerMessage[Payload, Failure] with ServerResponse): Future[Ack] = subject match {
+  override def onNext(elem: ServerMessage[Payload, ErrorType] with ServerResponse): Future[Ack] = subjectOpt match {
     case None => elem match {
       case SingleResponse(_, result) =>
-        promise trySuccess Right(Observable(result))
+        promise trySuccess EventualResult.Single(result)
         Ack.Stop
       case StreamResponse(_, result) =>
-        val newSubject = PublishSubject[Payload]()
-        promise trySuccess Right(newSubject)
-        subject = Some(newSubject)
-        newSubject.onNext(result)
+        val subject = PublishSubject[Payload]()
+        promise trySuccess EventualResult.Stream(subject)
+        subjectOpt = Some(subject)
+        subject.onNext(result)
       case StreamCloseResponse(_) =>
-        promise trySuccess Right(Observable())
+        promise trySuccess EventualResult.Stream(Observable.empty)
         Ack.Stop
-      case FailureResponse(_, msg) =>
-        promise trySuccess Left(msg)
+      case ErrorResponse(_, msg) =>
+        promise trySuccess EventualResult.Error(msg)
         Ack.Stop
-      case ErrorResponse(_) =>
-        promise tryFailure RequestException.ErrorResponse
+      case ExceptionResponse(_) =>
+        promise tryFailure RequestException.ExceptionResponse
         Ack.Stop
     }
     case Some(subject) => elem match {
@@ -39,8 +40,8 @@ class RequestObserver[Payload, Failure](promise: Promise[Either[Failure, Observa
       case StreamCloseResponse(_) =>
         subject.onComplete()
         Ack.Stop
-      case ErrorResponse(_) =>
-        subject.onError(RequestException.ErrorResponse)
+      case ExceptionResponse(_) =>
+        subject.onError(RequestException.ExceptionResponse)
         Ack.Stop
       case response =>
         subject.onError(RequestException.IllegalResponse(response))

@@ -13,6 +13,7 @@ import mycelium.server._
 import org.scalatest._
 import monix.reactive.Observable
 import monix.eval.Task
+import mycelium.core.EventualResult
 
 import scala.concurrent.duration._
 
@@ -29,11 +30,11 @@ class MyceliumRealSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAft
   }
 
   type Payload = Int
-  type Failure = Int
+  type ErrorType = Int
   type State = String
 
   val config = WebsocketServerConfig(bufferSize = 5, overflowStrategy = OverflowStrategy.fail, parallelism = 2)
-  val handler = new StatelessRequestHandler[Payload, Failure] {
+  val handler = new StatelessRequestHandler[Payload, ErrorType] {
     def onRequest(client: ClientId, path: List[String], payload: Payload) = path match {
       case "single" :: Nil => Response(Task(EventualResult.Single(payload)))
       case "stream" :: Nil => Response(Task(EventualResult.Stream(Observable(1,2,3,4))))
@@ -45,19 +46,19 @@ class MyceliumRealSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAft
   Http().bindAndHandle(route, interface = "0.0.0.0", port = port)
 
   "client with akka" - {
-    val client = WebsocketClient.withPayload[ByteBuffer, Payload, Failure](
+    val client = WebsocketClient.withPayload[ByteBuffer, Payload, ErrorType](
       new AkkaWebsocketConnection(bufferSize = 100, overflowStrategy = OverflowStrategy.fail), WebsocketClientConfig())
 
     client.run(s"ws://localhost:$port")
 
     "single result" in {
       val res = client.send("single" :: Nil, 1, SendType.WhenConnected, Some(10 seconds))
-      res.flatMap(_.right.get.lastL).runAsync.map(_ mustEqual 1)
+      res.map(_.asInstanceOf[EventualResult.Single[Payload]].value).runAsync.map(_ mustEqual 1)
     }
 
     "stream result" in {
       val res = client.send("stream" :: Nil, 0, SendType.WhenConnected, Some(11 seconds))
-      Observable.fromTask(res).flatMap(_.right.get).toListL.runAsync.map(l => l mustEqual List(1,2,3,4))
+      Observable.fromTask(res).flatMap(_.asInstanceOf[EventualResult.Stream[Payload]].observable).toListL.runAsync.map(l => l mustEqual List(1,2,3,4))
     }
   }
 }

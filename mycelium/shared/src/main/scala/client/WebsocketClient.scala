@@ -2,9 +2,11 @@ package mycelium.client
 
 import chameleon._
 import monix.eval.Task
-import monix.execution.{Ack, Scheduler}
+import monix.execution.cancelables.CompositeCancelable
+import monix.execution.{Ack, Cancelable, Scheduler}
 import monix.reactive.Observable
 import monix.reactive.subjects.{ConcurrentSubject, PublishSubject}
+import mycelium.core.EventualResult
 import mycelium.core.message._
 
 import scala.concurrent.Future
@@ -12,13 +14,13 @@ import scala.concurrent.duration._
 
 case class WebsocketClientConfig(minReconnectDelay: FiniteDuration = 1.seconds, maxReconnectDelay: FiniteDuration = 60.seconds, delayReconnectFactor: Double = 1.3, connectingTimeout: FiniteDuration = 5.seconds, pingInterval: FiniteDuration = 45.seconds)
 
-class WebsocketClientWithPayload[PickleType, Payload, Failure](
+class WebsocketClientWithPayload[PickleType, Payload, ErrorType](
   wsConfig: WebsocketClientConfig,
   ws: WebsocketConnection[PickleType],
-  requestMap: RequestMap[Either[Failure, Observable[Payload]]])(implicit
+  requestMap: RequestMap[EventualResult[Payload, ErrorType]])(implicit
   scheduler: Scheduler,
   serializer: Serializer[ClientMessage[Payload], PickleType],
-  deserializer: Deserializer[ServerMessage[Payload, Failure], PickleType]) {
+  deserializer: Deserializer[ServerMessage[Payload, ErrorType], PickleType]) {
 
   private object subjects {
     val connected = PublishSubject[Boolean]
@@ -26,7 +28,7 @@ class WebsocketClientWithPayload[PickleType, Payload, Failure](
     val outgoingMessages = ConcurrentSubject.publish[WebsocketMessage[PickleType]]
   }
 
-  private val responseMessages: Observable[ServerMessage[Payload, Failure] with ServerResponse] = subjects.incomingMessages.concatMap { rawMessage =>
+  private val responseMessages: Observable[ServerMessage[Payload, ErrorType] with ServerResponse] = subjects.incomingMessages.concatMap { rawMessage =>
     Observable.fromFuture(rawMessage).flatMap {
       case Some(value) => deserializer.deserialize(value) match {
         case Right(response) => response match {
@@ -53,7 +55,7 @@ class WebsocketClientWithPayload[PickleType, Payload, Failure](
         observable.subscribe(new RequestObserver(promise))
         ()
       case None =>
-        // signal to grouped observable that we are not subscribing
+        // signal to grouped observable that we do not need any elements from this group
         observable.take(0).subscribe(_ => ???)
         scribe.warn(s"Ignoring incoming messages. Unknown sequence id: $seqId")
     }
@@ -63,7 +65,7 @@ class WebsocketClientWithPayload[PickleType, Payload, Failure](
 
   val connected: Observable[Boolean] = subjects.connected
 
-  def send(path: List[String], payload: Payload, sendType: SendType, requestTimeout: Option[FiniteDuration]): Task[Either[Failure, Observable[Payload]]] = Task.deferFuture {
+  def send(path: List[String], payload: Payload, sendType: SendType, requestTimeout: Option[FiniteDuration]): Task[EventualResult[Payload, ErrorType]] = Task.deferFuture {
     val (seqId, promise) = requestMap.open()
     val request = CallRequest(seqId, path, payload)
     val pickledRequest = serializer.serialize(request)
@@ -77,37 +79,40 @@ class WebsocketClientWithPayload[PickleType, Payload, Failure](
     promise.future
   }
 
-  def run(location: String): Unit = {
+  def run(location: String): Cancelable = {
     val reactiveConn = ws.run(location, wsConfig, serializer.serialize(Ping))
-    reactiveConn.connected.subscribe(subjects.connected)
-    reactiveConn.incomingMessages.subscribe(subjects.incomingMessages)
+
+    val cancelable = CompositeCancelable()
+    cancelable += reactiveConn.cancelable
+    cancelable += reactiveConn.connected.subscribe(subjects.connected)
+    cancelable += reactiveConn.incomingMessages.subscribe(subjects.incomingMessages)
 
     val messageSender = new WebsocketMessageSender[PickleType](reactiveConn.outgoingMessages)
-    Observable.merge(
+    cancelable += Observable.merge(
       subjects.outgoingMessages.map(SenderAction.SendMessage.apply),
       reactiveConn.connected.map(SenderAction.ConnectionChanged.apply)
     ).subscribe(messageSender)
 
-    ()
+    cancelable
   }
 }
 
 object WebsocketClient {
-  def apply[PickleType, Failure](
+  def apply[PickleType, ErrorType](
     connection: WebsocketConnection[PickleType],
     config: WebsocketClientConfig)(implicit
     scheduler: Scheduler,
     serializer: Serializer[ClientMessage[PickleType], PickleType],
-    deserializer: Deserializer[ServerMessage[PickleType, Failure], PickleType]) =
-    withPayload[PickleType, PickleType, Failure](connection, config)
+    deserializer: Deserializer[ServerMessage[PickleType, ErrorType], PickleType]) =
+    withPayload[PickleType, PickleType, ErrorType](connection, config)
 
-  def withPayload[PickleType, Payload, Failure](
+  def withPayload[PickleType, Payload, ErrorType](
     connection: WebsocketConnection[PickleType],
     config: WebsocketClientConfig)(implicit
     scheduler: Scheduler,
     serializer: Serializer[ClientMessage[Payload], PickleType],
-    deserializer: Deserializer[ServerMessage[Payload, Failure], PickleType]) = {
-    val requestMap = new RequestMap[Either[Failure, Observable[Payload]]]
+    deserializer: Deserializer[ServerMessage[Payload, ErrorType], PickleType]) = {
+    val requestMap = new RequestMap[EventualResult[Payload, ErrorType]]
     new WebsocketClientWithPayload(config, connection, requestMap)
   }
 }

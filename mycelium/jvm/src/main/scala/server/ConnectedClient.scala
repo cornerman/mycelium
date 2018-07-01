@@ -4,6 +4,7 @@ import akka.actor.{Actor, ActorRef}
 import monix.execution.cancelables.CompositeCancelable
 import monix.execution.{Scheduler => MonixScheduler}
 import mycelium.core.message._
+import mycelium.core.EventualResult
 
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
@@ -19,8 +20,8 @@ case class ClientId(id: Int) extends AnyVal {
   override def toString = s"Client(${Integer.toString(id.hashCode, 36)})"
 }
 
-private[mycelium] class ConnectedClient[Payload, Failure, State](
-  handler: RequestHandler[Payload, Failure, State])(implicit scheduler: MonixScheduler) extends Actor {
+private[mycelium] class ConnectedClient[Payload, ErrorType, State](
+  handler: RequestHandler[Payload, ErrorType, State])(implicit scheduler: MonixScheduler) extends Actor {
   import ConnectedClient._
   import handler._
 
@@ -54,14 +55,14 @@ private[mycelium] class ConnectedClient[Payload, Failure, State](
                 .endWith(StreamCloseResponse(seqId) :: Nil)
                 .doOnError { t =>
                   scribe.warn(s"Unexpected exception in response stream, sending error downstream.", t)
-                  outgoing ! ErrorResponse(seqId)
+                  outgoing ! ExceptionResponse(seqId)
                 }
                 .foreach(outgoing ! _)
-            case EventualResult.Error(failure) => outgoing ! FailureResponse(seqId, failure)
+            case EventualResult.Error(failure) => outgoing ! ErrorResponse(seqId, failure)
           }
           case Failure(t) =>
             scribe.warn(s"Unexpected exception in response future, sending error downstream.", t)
-            outgoing ! ErrorResponse(seqId)
+            outgoing ! ExceptionResponse(seqId)
         }
 
         context.become(safeWithState(response.state))

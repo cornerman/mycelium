@@ -27,11 +27,11 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAl
   }
 
   type Payload = Int
-  type Failure = Int
+  type ErrorType = Int
   type State = String
 
   "client" in {
-    val client = WebsocketClient.withPayload[ByteBuffer, Payload, Failure](
+    val client = WebsocketClient.withPayload[ByteBuffer, Payload, ErrorType](
       new AkkaWebsocketConnection(bufferSize = 100, overflowStrategy = OverflowStrategy.fail), WebsocketClientConfig())
 
     // client.run("ws://hans")
@@ -45,7 +45,7 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAl
 
   "server" in {
     val config = WebsocketServerConfig(bufferSize = 5, overflowStrategy = OverflowStrategy.fail, parallelism = 2)
-    val handler = new StatelessRequestHandler[Payload, Failure] {
+    val handler = new StatelessRequestHandler[Payload, ErrorType] {
       def onRequest(client: ClientId, path: List[String], payload: Payload) = Response(Task(EventualResult.Single(payload)))
     }
 
@@ -55,7 +55,7 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAl
     val payloadValue = 1
     val builder = implicitly[AkkaMessageBuilder[ByteBuffer]]
     val serializer = implicitly[Serializer[ClientMessage[Payload], ByteBuffer]]
-    val deserializer = implicitly[Deserializer[ServerMessage[Payload, Failure], ByteBuffer]]
+    val deserializer = implicitly[Deserializer[ServerMessage[Payload, ErrorType], ByteBuffer]]
     val request = CallRequest(1, "foo" :: "bar" :: Nil, payloadValue)
     val msg = builder.pack(serializer.serialize(request))
 

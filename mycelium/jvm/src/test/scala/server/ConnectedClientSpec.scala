@@ -9,6 +9,7 @@ import mycelium.core.message._
 import org.scalatest._
 import monix.reactive.Observable
 import monix.eval.Task
+import mycelium.core.EventualResult
 
 import scala.collection.mutable
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -119,17 +120,17 @@ class ConnectedClientSpec extends TestKit(ActorSystem("ConnectedClientSpec")) wi
   "call request" - {
     "invalid path" in connectedActor { actor =>
       actor ! CallRequest(2, List("invalid", "path"), noArg)
-      expectMsg(FailureResponse(2, "path not found"))
+      expectMsg(ErrorResponse(2, "path not found"))
     }
 
     "exception in value api" in connectedActor { actor =>
       actor ! CallRequest(2, List("value-broken"), noArg)
-      expectMsg(FailureResponse(2, "an error"))
+      expectMsg(ErrorResponse(2, "an error"))
     }
 
     "exception in stream api" in connectedActor { actor =>
       actor ! CallRequest(2, List("stream-broken"), noArg)
-      expectMsg(FailureResponse(2, "an error"))
+      expectMsg(ErrorResponse(2, "an error"))
     }
 
     "call api" in connectedActor { actor =>

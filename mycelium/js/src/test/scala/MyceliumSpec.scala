@@ -15,10 +15,10 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
   WebSocketMock.setup()
 
   type Payload = String
-  type Failure = Int
+  type ErrorType = Int
 
   "client" in {
-    val client = WebsocketClient.withPayload[ByteBuffer, Payload, Failure](
+    val client = WebsocketClient.withPayload[ByteBuffer, Payload, ErrorType](
       new JsWebsocketConnection, WebsocketClientConfig())
 
     // client.run("ws://hans")

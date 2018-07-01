@@ -1,6 +1,7 @@
 package mycelium.client
 
-import monix.execution.Scheduler
+import monix.execution.{Cancelable, Scheduler}
+import monix.reactive.Observable
 import monix.reactive.subjects.{ConcurrentSubject, PublishSubject}
 import mycelium.client.raw._
 import mycelium.core.JsMessageBuilder
@@ -29,16 +30,12 @@ class JsWebsocketConnection[PickleType](implicit builder: JsMessageBuilder[Pickl
       override val debug: js.UndefOr[Boolean] = false
     })
 
-    val keepAliveTracker = new KeepAliveTracker(wsConfig.pingInterval, () => rawSend(websocket, pingMessage))
     def doSend(rawMessage: PickleType): Unit = {
-      keepAliveTracker.acknowledgeTraffic()
       rawSend(websocket, rawMessage) match {
         case Success(_) => ()
         case Failure(t) => scribe.warn(s"Websocket connection could not send message: $t")
       }
     }
-
-    outgoingMessages.foreach(doSend)
 
     websocket.onerror = { (e: Event) =>
       scribe.warn(s"Error in websocket connection: $e")
@@ -53,8 +50,6 @@ class JsWebsocketConnection[PickleType](implicit builder: JsMessageBuilder[Pickl
     }
 
     websocket.onmessage = { (e: MessageEvent) =>
-      keepAliveTracker.acknowledgeTraffic()
-
       val value = e.data match {
         case s: String => builder.unpack(s)
         case a: ArrayBuffer => builder.unpack(a)
@@ -65,10 +60,22 @@ class JsWebsocketConnection[PickleType](implicit builder: JsMessageBuilder[Pickl
       incomingMessages.onNext(value)
     }
 
+    val cancelSending = Observable.merge(
+      outgoingMessages,
+      outgoingMessages
+        .debounceTo(wsConfig.pingInterval, _ => Observable.interval(wsConfig.pingInterval).map(_ => pingMessage))
+    ).foreach(doSend)
+
+    val cancelable = Cancelable { () =>
+      cancelSending.cancel()
+      websocket.close()
+    }
+
     ReactiveWebsocketConnection(
       connected = connectedSubject,
       incomingMessages = incomingMessages,
-      outgoingMessages = outgoingMessages
+      outgoingMessages = outgoingMessages,
+      cancelable = cancelable
     )
   }
 
