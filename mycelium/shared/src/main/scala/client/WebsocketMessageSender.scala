@@ -15,7 +15,7 @@ object SenderAction {
 
 class WebsocketMessageSender[PickleType](outgoingMessages: Observer[PickleType])(implicit scheduler: Scheduler) extends Observer[SenderAction[PickleType]] {
   private val queue = new mutable.ArrayBuffer[WebsocketMessage.Buffered[PickleType]]
-  private var isConnected = false
+  @volatile private var isConnected = false
 
   def onNext(m: SenderAction[PickleType]): Future[Ack] = m match {
     case SenderAction.SendMessage(message) =>
