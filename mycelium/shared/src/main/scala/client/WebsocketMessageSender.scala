@@ -60,8 +60,8 @@ class WebsocketMessageSender[PickleType](outgoingMessages: Observer[PickleType])
   }
 
   private def startMessageTimeout(message: WebsocketMessage[PickleType]): Unit = message.timeout.foreach { timeout =>
-    Task.timer.sleep(timeout).runAsync.foreach { _ =>
+    Task {
       message.promise tryFailure RequestException.Timeout
-    }
+    }.delayExecution(timeout).runAsync
   }
 }
