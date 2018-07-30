@@ -1,14 +1,14 @@
 package mycelium.core
 
+import java.nio.ByteBuffer
+
+import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
 import akka.stream.Materializer
 import akka.stream.scaladsl.Source
-import akka.http.scaladsl.model.ws.{BinaryMessage, TextMessage, Message}
 import akka.util.{ByteString, ByteStringBuilder}
 
+import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
-import scala.concurrent.Future
-import java.nio.ByteBuffer
-import scala.concurrent.ExecutionContext
 
 trait AkkaMessageBuilder[PickleType] {
   def pack(msg: PickleType): Message

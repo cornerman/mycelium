@@ -1,18 +1,18 @@
 package test
 
-import mycelium.client._
-import chameleon.ext.boopickle._
-
-import org.scalatest._
-import boopickle.Default._
 import java.nio.ByteBuffer
+
+import boopickle.Default._
+import chameleon.ext.boopickle._
+import mycelium.client._
+import org.scalatest._
+
 import scala.concurrent.duration._
 
 class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
-  WebSocketMock.setup()
+  import monix.execution.Scheduler.Implicits.global
 
-  //TODO: why does it need executionContext
-  implicit override def executionContext = scala.concurrent.ExecutionContext.Implicits.global
+  WebSocketMock.setup()
 
   type Payload = String
   type Event = String
@@ -24,10 +24,10 @@ class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
 
     // client.run("ws://hans")
 
-    val res = client.send("foo" :: "bar" :: Nil, "harals", SendType.NowOrFail, 30 seconds)
-    val res2 = client.send("foo" :: "bar" :: Nil, "harals", SendType.WhenConnected, 30 seconds)
+    val res = client.send("foo" :: "bar" :: Nil, "harals", SendType.NowOrFail, Some(30 seconds))
+    val res2 = client.send("foo" :: "bar" :: Nil, "harals", SendType.WhenConnected, Some(30 seconds))
 
-    res.failed.map(_ mustEqual DroppedMessageException)
-    res2.value mustEqual None
+    res.failed.map(_ mustEqual RequestException.Dropped)
+    res2.lastL.runAsync.value mustEqual None
   }
 }

@@ -1,11 +1,11 @@
 package mycelium.client
 
-import scala.collection.mutable
-import scala.concurrent.{ ExecutionContext, Future }
-import java.util.{ Timer, TimerTask }
+import java.util.{Timer, TimerTask}
 
-case object TimeoutException extends Exception
-case object DroppedMessageException extends Exception
+import monix.execution.Scheduler
+
+import scala.collection.mutable
+import scala.concurrent.Future
 
 trait WebsocketMessageSender[PickleType, Sender] {
   protected def senderOption: Option[Sender]
@@ -13,7 +13,7 @@ trait WebsocketMessageSender[PickleType, Sender] {
 
   private val queue = new mutable.ArrayBuffer[WebsocketMessage.Buffered[PickleType]]
 
-  def sendOrBuffer(message: WebsocketMessage[PickleType])(implicit ec: ExecutionContext): Unit = senderOption match {
+  def sendOrBuffer(message: WebsocketMessage[PickleType])(implicit scheduler: Scheduler): Unit = senderOption match {
     case Some(sender) => sendMessage(sender, message)
     case None => message match {
       case message: WebsocketMessage.Direct[PickleType] => signalDroppedMessage(message)
@@ -21,13 +21,13 @@ trait WebsocketMessageSender[PickleType, Sender] {
     }
   }
 
-  def trySendBuffer()(implicit ec: ExecutionContext): Unit = senderOption.foreach { sender =>
+  def trySendBuffer()(implicit scheduler: Scheduler): Unit = senderOption.foreach { sender =>
     val priorityQueue = queue.sortBy(- _.priority)
     priorityQueue.foreach(sendMessage(sender, _))
     queue.clear()
   }
 
-  private def sendMessage(sender: Sender, message: WebsocketMessage[PickleType])(implicit ec: ExecutionContext): Unit = {
+  private def sendMessage(sender: Sender, message: WebsocketMessage[PickleType])(implicit scheduler: Scheduler): Unit = {
     startMessageTimeout(message)
     doSend(sender, message.pickled).foreach { success =>
       if (!success) signalDroppedMessage(message)
@@ -35,21 +35,21 @@ trait WebsocketMessageSender[PickleType, Sender] {
   }
 
   private def signalDroppedMessage(message: WebsocketMessage[PickleType]): Unit = {
-    message.promise tryFailure DroppedMessageException
+    message.subject.onError(RequestException.Dropped)
     ()
   }
 
-  private def startMessageTimeout(message: WebsocketMessage[PickleType])(implicit ctx: ExecutionContext): Unit = {
+  private def startMessageTimeout(message: WebsocketMessage[PickleType])(implicit scheduler: Scheduler): Unit = message.timeout.foreach { timeout =>
     val timer = new Timer
-    val task = new TimerTask {
+    val task: TimerTask = new TimerTask {
       def run(): Unit = {
-        message.promise tryFailure TimeoutException
+        message.subject.onError(RequestException.Timeout)
         ()
       }
     }
 
-    timer.schedule(task, message.timeout.toMillis)
-    message.promise.future.onComplete { _ =>
+    timer.schedule(task, timeout.toMillis)
+    message.subject.completedL.runAsync.onComplete { _ =>
       timer.cancel()
       timer.purge()
     }

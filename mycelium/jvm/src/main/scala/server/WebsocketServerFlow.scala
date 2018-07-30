@@ -1,13 +1,14 @@
 package mycelium.server
 
-import mycelium.core._
-import mycelium.core.message._
-import chameleon._
-
 import akka.NotUsed
 import akka.actor._
 import akka.http.scaladsl.model.ws.Message
 import akka.stream.scaladsl._
+import chameleon._
+import monix.execution.{Scheduler => MonixScheduler}
+import mycelium.core._
+import mycelium.core.message._
+
 import scala.util.control.NonFatal
 
 object WebsocketServerFlow {
@@ -17,10 +18,10 @@ object WebsocketServerFlow {
     config: WebsocketServerConfig,
     handler: RequestHandler[Payload, Event, Failure, State])(implicit
     system: ActorSystem,
+    scheduler: MonixScheduler,
     serializer: Serializer[ServerMessage[Payload, Event, Failure], PickleType],
     deserializer: Deserializer[ClientMessage[Payload], PickleType],
     builder: AkkaMessageBuilder[PickleType]): Type = {
-    import system.dispatcher
 
     val connectedClientActor = system.actorOf(Props(new ConnectedClient(handler)))
 
