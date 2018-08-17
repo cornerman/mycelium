@@ -53,11 +53,11 @@ class TestRequestHandler extends StatefulRequestHandler[ByteBuffer, String, Opti
     }
   }
 
-  override def onClientConnect(client: ClientId, state: Future[Option[String]]): Unit = {
+  override def onClientConnect(client: ClientId): Unit = {
     clients += client
     ()
   }
-  override def onClientDisconnect(client: ClientId, state: Future[Option[String]], reason: DisconnectReason): Unit = {
+  override def onClientDisconnect(client: ClientId, reason: DisconnectReason): Unit = {
     clients -= client
     ()
   }

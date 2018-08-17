@@ -16,11 +16,11 @@ trait RequestHandler[Payload, ErrorType, State] {
   // called when a client connects to the websocket. this allows for
   // managing/bookkeeping of connected clients. the ClientId uniquely
   // identitifes this client connection.
-  def onClientConnect(client: ClientId, state: Future[State]): Unit = {}
+  def onClientConnect(client: ClientId): Unit = {}
 
   // called when a client disconnects. this can be due to a timeout on the
   // websocket connection or the client closed the connection.
-  def onClientDisconnect(client: ClientId, state: Future[State], reason: DisconnectReason): Unit = {}
+  def onClientDisconnect(client: ClientId, reason: DisconnectReason): Unit = {}
 
   // a request is a (path: List[String], args: Payload), which
   // needs to be mapped to a result.  if the request cannot be handled, you can
@@ -35,12 +35,8 @@ trait StatefulRequestHandler[Payload, ErrorType, State] extends RequestHandler[P
 trait StatelessRequestHandler[Payload, ErrorType] extends RequestHandler[Payload, ErrorType, Unit] {
   def Response(task: Task[EventualResult[Payload, ErrorType]]): Response = HandlerResponse(initialState, task)
 
-  def onClientConnect(client: ClientId): Unit = {}
-  def onClientDisconnect(client: ClientId, reason: DisconnectReason): Unit = {}
   def onRequest(client: ClientId, path: List[String], payload: Payload): Response
 
   final def initialState = Future.successful(())
-  final override def onClientConnect(client: ClientId, state: Future[Unit]): Unit = onClientConnect(client)
-  final override def onClientDisconnect(client: ClientId, state: Future[Unit], reason: DisconnectReason): Unit = onClientDisconnect(client, reason)
   final override def onRequest(client: ClientId, state: Future[Unit], path: List[String], payload: Payload): Response = onRequest(client, path, payload)
 }

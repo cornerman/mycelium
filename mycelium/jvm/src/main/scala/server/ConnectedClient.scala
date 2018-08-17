@@ -12,7 +12,6 @@ import scala.util.{Failure, Success}
 sealed trait DisconnectReason
 object DisconnectReason {
   case object Stopped extends DisconnectReason
-  case object Killed extends DisconnectReason
   case class StateFailed(failure: Throwable) extends DisconnectReason
 }
 
@@ -30,7 +29,7 @@ private[mycelium] class ConnectedClient[Payload, ErrorType, State](
     val cancelables = CompositeCancelable()
     val clientId = ClientId(self.hashCode)
     def stopActor(state: Future[State], reason: DisconnectReason): Unit = {
-      onClientDisconnect(clientId, state, reason)
+      onClientDisconnect(clientId, reason)
       cancelables.cancel()
       context.stop(self)
     }
@@ -70,9 +69,8 @@ private[mycelium] class ConnectedClient[Payload, ErrorType, State](
       case Stop => stopActor(state, DisconnectReason.Stopped)
     }
 
-    val firstState = initialState
-    onClientConnect(clientId, firstState)
-    safeWithState(firstState)
+    onClientConnect(clientId)
+    safeWithState(initialState)
   }
 
   def receive = {
