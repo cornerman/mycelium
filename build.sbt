@@ -72,7 +72,7 @@ lazy val mycelium = crossProject
       "-P:scalajs:sjsDefinedByDefault" ::
       Nil,
     npmDependencies in Compile ++=
-      "reconnecting-websocket" -> "3.2.2" ::
+      "reconnecting-websocket" -> "4.1.10" ::
       Nil,
     npmDependencies in Test ++=
       "html5-websocket" -> "2.0.1" ::
