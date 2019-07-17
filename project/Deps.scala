@@ -5,9 +5,9 @@ import org.portablescala.sbtplatformdeps.PlatformDepsPlugin.autoImport._
 object Deps {
   import Def.{setting => dep}
 
-  val scalaTest = dep("org.scalatest" %%% "scalatest" % "3.0.5")
+  val scalaTest = dep("org.scalatest" %%% "scalatest" % "3.0.8")
   val scalajs = new {
-    val dom = dep("org.scala-js" %%% "scalajs-dom" % "0.9.6")
+    val dom = dep("org.scala-js" %%% "scalajs-dom" % "0.9.7")
   }
   val akka = new {
     private val version = "2.5.11"
@@ -17,6 +17,8 @@ object Deps {
     val testkit = dep("com.typesafe.akka" %% "akka-testkit" % version)
   }
   val chameleon = dep("com.github.cornerman.chameleon" %%% "chameleon" % "cb9b1b4")
-  val boopickle = dep("io.suzaku" %%% "boopickle" % "1.3.0")
+  val boopickle = dep("io.suzaku" %%% "boopickle" % "1.3.1")
   val scribe = dep("com.outr" %%% "scribe" % "2.7.8")
+  val boopickle = dep("io.suzaku" %%% "boopickle" % "1.3.1")
+  val scribe = dep("com.outr" %%% "scribe" % "2.6.0")
 }
