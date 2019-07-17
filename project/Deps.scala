@@ -10,8 +10,8 @@ object Deps {
     val dom = dep("org.scala-js" %%% "scalajs-dom" % "0.9.7")
   }
   val akka = new {
-    private val version = "2.5.11"
-    val http = dep("com.typesafe.akka" %% "akka-http" % "10.1.0")
+    private val version = "2.5.23"
+    val http = dep("com.typesafe.akka" %% "akka-http" % "10.1.9")
     val stream = dep("com.typesafe.akka" %% "akka-stream" % version)
     val actor = dep("com.typesafe.akka" %% "akka-actor" % version)
     val testkit = dep("com.typesafe.akka" %% "akka-testkit" % version)
