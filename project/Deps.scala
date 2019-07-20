@@ -18,5 +18,5 @@ object Deps {
   }
   val chameleon = dep("com.github.cornerman.chameleon" %%% "chameleon" % "73ac23c")
   val boopickle = dep("io.suzaku" %%% "boopickle" % "1.3.1")
-  val scribe = dep("com.outr" %%% "scribe" % "2.7.8")
+  val scribe = dep("com.outr" %%% "scribe" % "2.7.9")
 }
