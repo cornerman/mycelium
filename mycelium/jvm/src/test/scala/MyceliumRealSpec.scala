@@ -1,28 +1,24 @@
 package test
 
-import org.scalatest._
+import java.nio.ByteBuffer
 
+import akka.actor.ActorSystem
+import akka.http.scaladsl.Http
+import akka.http.scaladsl.server.Directives._
+import akka.stream.{ActorMaterializer, OverflowStrategy}
+import boopickle.Default._
+import chameleon.ext.boopickle._
 import mycelium.client._
 import mycelium.server._
-import mycelium.core._
-import mycelium.core.message._
-import boopickle.Default._
-import java.nio.ByteBuffer
-import chameleon._
-import chameleon.ext.boopickle._
-import akka.actor.ActorSystem
-import akka.stream.{ActorMaterializer, OverflowStrategy}
-import akka.stream.scaladsl._
-import akka.http.scaladsl.server.RouteResult._
-import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.Http
+import org.scalatest._
+import monix.reactive.Observable
+import monix.eval.Task
+import mycelium.core.EventualResult
 
-import scala.concurrent.Future
 import scala.concurrent.duration._
 
 class MyceliumRealSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
-  //TODO: why does it need executionContext
-  implicit override def executionContext = scala.concurrent.ExecutionContext.Implicits.global
+  override implicit def executionContext = monix.execution.Scheduler.global
 
   implicit val system = ActorSystem()
   implicit val materializer = ActorMaterializer()
@@ -34,24 +30,35 @@ class MyceliumRealSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAft
   }
 
   type Payload = Int
-  type Event = String
-  type Failure = Int
+  type ErrorType = Int
   type State = String
 
-  val config = WebsocketServerConfig(bufferSize = 5, overflowStrategy = OverflowStrategy.fail)
-  val handler = new SimpleStatelessRequestHandler[Payload, Event, Failure] {
-    def onRequest(path: List[String], payload: Payload) = Response(Future.successful(ReturnValue(Right(payload))))
+  val config = WebsocketServerConfig(bufferSize = 5, overflowStrategy = OverflowStrategy.fail, parallelism = 2)
+  val handler = new StatelessRequestHandler[Payload, ErrorType] {
+    def onRequest(client: ClientId, path: List[String], payload: Payload) = path match {
+      case "single" :: Nil => Response(Task(EventualResult.Single(payload)))
+      case "stream" :: Nil => Response(Task(EventualResult.Stream(Observable(1,2,3,4))))
+      case _ => ???
+    }
   }
   val server = WebsocketServer.withPayload(config, handler)
   val route = handleWebSocketMessages(server.flow())
   Http().bindAndHandle(route, interface = "0.0.0.0", port = port)
 
-  "client with akka" in {
-    val client = WebsocketClient.withPayload[ByteBuffer, Payload, Event, Failure](
-      new AkkaWebsocketConnection(bufferSize = 100, overflowStrategy = OverflowStrategy.fail), WebsocketClientConfig(), new IncidentHandler[Event])
+  "client with akka" - {
+    val client = WebsocketClient.withPayload[ByteBuffer, Payload, ErrorType](s"ws://localhost:$port", new AkkaWebsocketConnection, WebsocketClientConfig())
 
-    client.run(s"ws://localhost:$port")
-    val res = client.send("foo" :: "bar" :: Nil, 1, SendType.WhenConnected, 30 seconds)
-    res.map(_ mustEqual Right(1))
+    "single result" in {
+      val res = client.send("single" :: Nil, 1, SendType.WhenConnected, Some(10 seconds))
+      res.map(_.asInstanceOf[EventualResult.Single[Payload]].value).runAsync.map(_ mustEqual 1)
+    }
+
+    "stream result" in {
+      val res = client.send("stream" :: Nil, 0, SendType.WhenConnected, Some(11 seconds))
+      res.runAsync.flatMap { r =>
+        Thread.sleep(2000)
+        r.asInstanceOf[EventualResult.Stream[Payload]].observable.toListL.runAsync.map(l => l mustEqual List(1,2,3,4))
+      }
+    }
   }
 }

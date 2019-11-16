@@ -1,107 +1,66 @@
 package mycelium.client
 
-import mycelium.core.AkkaMessageBuilder
-
-import akka.actor._
+import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
-import akka.stream.{ ActorMaterializer, OverflowStrategy, QueueOfferResult }
-import akka.stream.scaladsl._
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.ws._
 import akka.http.scaladsl.settings.ClientConnectionSettings
-import scala.concurrent.{ExecutionContext, Future, Promise}
-import scala.util.{Success, Failure}
+import akka.stream.scaladsl._
+import akka.stream.{ActorMaterializer, KillSwitches}
+import monix.execution.{Ack, Cancelable, Scheduler}
+import monix.reactive.subjects.{ConcurrentSubject, PublishSubject}
+import mycelium.core.AkkaMessageBuilder
 
-class AkkaWebsocketConnection[PickleType](bufferSize: Int, overflowStrategy: OverflowStrategy)(implicit system: ActorSystem, materializer: ActorMaterializer, builder: AkkaMessageBuilder[PickleType]) extends WebsocketConnection[PickleType] {
-  import system.dispatcher
+import scala.concurrent.Future
 
-  private val (outgoing, outgoingMaterialized) = {
-    val promise = Promise[SourceQueue[Message]]
-    val source = Source.queue[Message](bufferSize, overflowStrategy)
-                       .mapMaterializedValue { m => promise.success(m); m }
-    (source, promise.future)
-  }
+class AkkaWebsocketConnection[PickleType](implicit system: ActorSystem, scheduler: Scheduler, materializer: ActorMaterializer, builder: AkkaMessageBuilder[PickleType]) extends WebsocketConnection[PickleType] {
 
-  private val sendActor = system.actorOf(Props(new SendActor(outgoingMaterialized)))
+  override def run(
+    location: String,
+    wsConfig: WebsocketClientConfig,
+    pingMessage: PickleType): ReactiveWebsocketConnection[PickleType] = {
+    val connectedSubject = ConcurrentSubject.publish[Boolean]
+    val incomingMessages = PublishSubject[Future[Option[PickleType]]]
+    val outgoingMessages = PublishSubject[PickleType]
 
-  def send(msg: WebsocketMessage[PickleType]): Unit = sendActor ! msg
-
-  //TODO return result signaling closed
-  def run(location: String, wsConfig: WebsocketClientConfig, pingMessage: PickleType, listener: WebsocketListener[PickleType]) = {
-    val incoming = Sink.foreach[Message] { message =>
-      builder.unpack(message).onComplete { //TODO we are breaking the order here, better sequence the future[m] inside the sink? foldasync?
-        case Success(value) => value match {
-          case Some(value) => listener.onMessage(value)
-          case None => scribe.warn(s"Ignoring websocket message. Builder does not support message ($message)")
-        }
-        case Failure(t) => scribe.warn(s"Ignoring websocket message. Builder failed to unpack message ($message): $t")
-      }
+    val incoming = Sink.foldAsync[Ack, Message](Ack.Continue) { case (_, message) =>
+      val value = builder.unpack(message)
+      incomingMessages.onNext(value)
     }
 
     val wsFlow = RestartFlow.withBackoff(minBackoff = wsConfig.minReconnectDelay, maxBackoff = wsConfig.maxReconnectDelay, randomFactor = wsConfig.delayReconnectFactor - 1) { () =>
       Http()
         .webSocketClientFlow(WebSocketRequest(location), settings = ClientConnectionSettings(system).withConnectingTimeout(wsConfig.connectingTimeout))
-        .mapMaterializedValue { upgrade =>
-          upgrade.foreach { upgrade =>
-            if (upgrade.response.status == StatusCodes.SwitchingProtocols) {
-              outgoingMaterialized.foreach { _ => // TODO: need to wait for materialized queue, as actor depends on it...
-                listener.onConnect()
-                sendActor ! SendActor.Connected
-              }
-            }
+        .mapMaterializedValue(_.map { upgrade =>
+          if (upgrade.response.status == StatusCodes.SwitchingProtocols) {
+            connectedSubject.onNext(true)
           }
           upgrade
-        }
+        })
         .mapError { case t =>
           scribe.warn(s"Error in websocket connection: $t")
-          sendActor ! SendActor.Closed
-          listener.onClose()
+          connectedSubject.onNext(false)
           t
         }
     }
 
-    val websocketPingMessage = builder.pack(pingMessage)
-    val closed = outgoing
+  val websocketPingMessage = builder.pack(pingMessage)
+  val killSwitch = Source.fromPublisher(outgoingMessages.map(builder.pack).toReactivePublisher)
       .keepAlive(wsConfig.pingInterval, () => websocketPingMessage)
+      .viaMat(KillSwitches.single)(Keep.right)
       .viaMat(wsFlow)(Keep.left)
-      .toMat(incoming)(Keep.right)
+      .toMat(incoming)(Keep.left)
       .run()
 
-    closed.onComplete { res =>
-      scribe.error(s"Websocket connection finally closed: $res")
+    val cancelable = Cancelable { () =>
+      killSwitch.shutdown()
     }
-  }
-}
 
-//TODO future source is dangerous as it might complete before we receive a Connected message
-private[client] class SendActor[PickleType](queue: Future[SourceQueue[Message]])(implicit ec: ExecutionContext, builder: AkkaMessageBuilder[PickleType]) extends Actor {
-  import SendActor._
-
-  private var isConnected = false
-  private val messageSender = new WebsocketMessageSender[PickleType, SourceQueue[Message]] {
-    override def senderOption = if (isConnected) queue.value.flatMap(_.toOption) else None
-    override def doSend(queue: SourceQueue[Message], rawMessage: PickleType) = {
-      val message = builder.pack(rawMessage)
-      queue.offer(message).map {
-        case QueueOfferResult.Enqueued => true
-        case res =>
-          scribe.warn(s"Websocket connection could not send message: $res")
-          false
-      }
-    }
+    ReactiveWebsocketConnection(
+      connected = connectedSubject,
+      incomingMessages = incomingMessages,
+      outgoingMessages = outgoingMessages,
+      cancelable = cancelable
+    )
   }
-
-  def receive = {
-    case Connected =>
-      isConnected = true
-      messageSender.trySendBuffer()
-    case Closed =>
-      isConnected = false
-    case message: WebsocketMessage[PickleType] =>
-      messageSender.sendOrBuffer(message)
-  }
-}
-private[client] object SendActor {
-  case object Connected
-  case object Closed
 }

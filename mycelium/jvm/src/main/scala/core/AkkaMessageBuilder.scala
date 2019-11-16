@@ -1,14 +1,14 @@
 package mycelium.core
 
+import java.nio.ByteBuffer
+
+import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
 import akka.stream.Materializer
 import akka.stream.scaladsl.Source
-import akka.http.scaladsl.model.ws.{BinaryMessage, TextMessage, Message}
 import akka.util.{ByteString, ByteStringBuilder}
 
+import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
-import scala.concurrent.Future
-import java.nio.ByteBuffer
-import scala.concurrent.ExecutionContext
 
 trait AkkaMessageBuilder[PickleType] {
   def pack(msg: PickleType): Message
@@ -30,7 +30,12 @@ object AkkaMessageBuilder {
     }
   }
   implicit def AkkaMessageBuilderByteBuffer(implicit ec: ExecutionContext, materializer: Materializer) = new AkkaMessageBuilder[ByteBuffer] {
-    override def pack(payload: ByteBuffer): Message = BinaryMessage(ByteString(payload))
+    override def pack(payload: ByteBuffer): Message = {
+      val length = payload.limit() - payload.position()
+      val bytes = new Array[Byte](length)
+      payload.get(bytes, payload.position(), length)
+      BinaryMessage(ByteString(bytes))
+    }
     override def unpack(m: Message): Future[Option[ByteBuffer]] = m match {
       case BinaryMessage.Strict(payload) => Future.successful(Some(payload.asByteBuffer))
       case BinaryMessage.Streamed(stream) => limitStream(stream).runFold(new ByteStringBuilder)(_ append _).map(b => Some(b.result().asByteBuffer))

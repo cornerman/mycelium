@@ -1,33 +1,29 @@
 package test
 
-import mycelium.client._
-import chameleon.ext.boopickle._
-
-import org.scalatest._
-import boopickle.Default._
 import java.nio.ByteBuffer
+
+import boopickle.Default._
+import chameleon.ext.boopickle._
+import mycelium.client._
+import org.scalatest._
+
 import scala.concurrent.duration._
 
 class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
+  import monix.execution.Scheduler.Implicits.global
+
   WebSocketMock.setup()
 
-  //TODO: why does it need executionContext
-  implicit override def executionContext = scala.concurrent.ExecutionContext.Implicits.global
-
   type Payload = String
-  type Event = String
-  type Failure = Int
+  type ErrorType = Int
 
   "client" in {
-    val client = WebsocketClient.withPayload[ByteBuffer, Payload, Event, Failure](
-      new JsWebsocketConnection, WebsocketClientConfig(), new IncidentHandler[Event])
+    val client = WebsocketClient.withPayload[ByteBuffer, Payload, ErrorType]("ws://localhost", new JsWebsocketConnection, WebsocketClientConfig())
 
-    // client.run("ws://hans")
+    val res = client.send("foo" :: "bar" :: Nil, "harals", SendType.NowOrFail, Some(30 seconds))
+    val res2 = client.send("foo" :: "bar" :: Nil, "harals", SendType.WhenConnected, Some(30 seconds))
 
-    val res = client.send("foo" :: "bar" :: Nil, "harals", SendType.NowOrFail, 30 seconds)
-    val res2 = client.send("foo" :: "bar" :: Nil, "harals", SendType.WhenConnected, 30 seconds)
-
-    res.failed.map(_ mustEqual DroppedMessageException)
-    res2.value mustEqual None
+    res.runAsync.failed.map(_ mustEqual RequestException.Dropped)
+    res2.runAsync.value mustEqual None
   }
 }

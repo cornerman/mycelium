@@ -1,57 +1,67 @@
 package mycelium.client
 
+import monix.eval.Task
+import monix.execution.{Ack, Scheduler}
+import monix.reactive.Observer
+
 import scala.collection.mutable
-import scala.concurrent.{ ExecutionContext, Future }
-import java.util.{ Timer, TimerTask }
+import scala.concurrent.Future
 
-case object TimeoutException extends Exception
-case object DroppedMessageException extends Exception
+sealed trait SenderAction[+PickleType]
+object SenderAction {
+  case class ConnectionChanged(connected: Boolean) extends SenderAction[Nothing]
+  case class SendMessage[PickleType](message: WebsocketMessage[PickleType]) extends SenderAction[PickleType]
+}
 
-trait WebsocketMessageSender[PickleType, Sender] {
-  protected def senderOption: Option[Sender]
-  protected def doSend(sender: Sender, message: PickleType): Future[Boolean]
-
+class WebsocketMessageSender[PickleType](outgoingMessages: Observer[PickleType])(implicit scheduler: Scheduler) extends Observer[SenderAction[PickleType]] {
   private val queue = new mutable.ArrayBuffer[WebsocketMessage.Buffered[PickleType]]
+  @volatile private var isConnected = false
 
-  def sendOrBuffer(message: WebsocketMessage[PickleType])(implicit ec: ExecutionContext): Unit = senderOption match {
-    case Some(sender) => sendMessage(sender, message)
-    case None => message match {
-      case message: WebsocketMessage.Direct[PickleType] => signalDroppedMessage(message)
-      case message: WebsocketMessage.Buffered[PickleType] => queue.append(message)
-    }
+  def onNext(m: SenderAction[PickleType]): Future[Ack] = m match {
+    case SenderAction.SendMessage(message) =>
+      if (isConnected) sendMessage(message)
+      else {
+        message match {
+          case message: WebsocketMessage.Direct[PickleType] => signalDroppedMessage(message)
+          case message: WebsocketMessage.Buffered[PickleType] => queue.append(message)
+        }
+        Ack.Continue
+      }
+    case SenderAction.ConnectionChanged(connected) =>
+      if (connected != isConnected) {
+        isConnected = true
+        tryFlushBuffer()
+      } else Ack.Continue
+
   }
 
-  def trySendBuffer()(implicit ec: ExecutionContext): Unit = senderOption.foreach { sender =>
+  override def onError(ex: Throwable): Unit = outgoingMessages.onError(ex)
+  override def onComplete(): Unit = outgoingMessages.onComplete()
+
+  private def tryFlushBuffer(): Future[Ack] = if (isConnected && queue.nonEmpty) {
     val priorityQueue = queue.sortBy(- _.priority)
-    priorityQueue.foreach(sendMessage(sender, _))
     queue.clear()
+    sendMessages(priorityQueue)
+  } else Ack.Continue
+
+  private def sendMessage(message: WebsocketMessage[PickleType]): Future[Ack] = {
+    startMessageTimeout(message)
+    outgoingMessages.onNext(message.pickled)
   }
 
-  private def sendMessage(sender: Sender, message: WebsocketMessage[PickleType])(implicit ec: ExecutionContext): Unit = {
-    startMessageTimeout(message)
-    doSend(sender, message.pickled).foreach { success =>
-      if (!success) signalDroppedMessage(message)
-    }
+  private def sendMessages(messages: Seq[WebsocketMessage[PickleType]]): Future[Ack] = {
+    messages.foreach(startMessageTimeout)
+    Observer.feed(outgoingMessages, messages.map(_.pickled))
   }
 
   private def signalDroppedMessage(message: WebsocketMessage[PickleType]): Unit = {
-    message.promise tryFailure DroppedMessageException
+    message.promise tryFailure RequestException.Dropped
     ()
   }
 
-  private def startMessageTimeout(message: WebsocketMessage[PickleType])(implicit ctx: ExecutionContext): Unit = {
-    val timer = new Timer
-    val task = new TimerTask {
-      def run(): Unit = {
-        message.promise tryFailure TimeoutException
-        ()
-      }
-    }
-
-    timer.schedule(task, message.timeout.toMillis)
-    message.promise.future.onComplete { _ =>
-      timer.cancel()
-      timer.purge()
-    }
+  private def startMessageTimeout(message: WebsocketMessage[PickleType]): Unit = message.timeout.foreach { timeout =>
+    Task {
+      message.promise tryFailure RequestException.Timeout
+    }.delayExecution(timeout).runAsync
   }
 }
