@@ -16,8 +16,10 @@ import akka.stream.scaladsl._
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
+import org.scalatest.freespec.AsyncFreeSpec
+import org.scalatest.matchers.must.Matchers
 
-class MyceliumSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
+class MyceliumSpec extends AsyncFreeSpec with Matchers with BeforeAndAfterAll {
   //TODO: why does it need executionContext
   implicit override def executionContext = scala.concurrent.ExecutionContext.Implicits.global
 
