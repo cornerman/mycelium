@@ -11,6 +11,8 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.collection.mutable
+import org.scalatest.freespec.AnyFreeSpecLike
+import org.scalatest.matchers.must.Matchers
 
 class TestRequestHandler extends FullRequestHandler[ByteBuffer, String, String, Option[String]] {
   val clients = mutable.HashSet.empty[NotifiableClient[String, Option[String]]]
@@ -65,7 +67,7 @@ class TestRequestHandler extends FullRequestHandler[ByteBuffer, String, String, 
   }
 }
 
-class ConnectedClientSpec extends TestKit(ActorSystem("ConnectedClientSpec")) with ImplicitSender with FreeSpecLike with MustMatchers {
+class ConnectedClientSpec extends TestKit(ActorSystem("ConnectedClientSpec")) with ImplicitSender with AnyFreeSpecLike with Matchers {
 
   def requestHandler = new TestRequestHandler
   def newActor(handler: TestRequestHandler = requestHandler): ActorRef = TestActorRef(new ConnectedClient(handler))

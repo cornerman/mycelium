@@ -1,8 +1,10 @@
 package mycelium.client
 
 import org.scalatest._
+import org.scalatest.freespec.AsyncFreeSpec
+import org.scalatest.matchers.must.Matchers
 
-class RequestMapSpec extends AsyncFreeSpec with MustMatchers {
+class RequestMapSpec extends AsyncFreeSpec with Matchers {
   implicit override def executionContext = scala.concurrent.ExecutionContext.Implicits.global
 
   "open requests" - {

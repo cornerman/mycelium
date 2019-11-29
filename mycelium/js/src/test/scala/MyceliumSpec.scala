@@ -7,8 +7,10 @@ import org.scalatest._
 import boopickle.Default._
 import java.nio.ByteBuffer
 import scala.concurrent.duration._
+import org.scalatest.freespec.AsyncFreeSpec
+import org.scalatest.matchers.must.Matchers
 
-class MyceliumSpec extends AsyncFreeSpec with MustMatchers {
+class MyceliumSpec extends AsyncFreeSpec with Matchers {
   WebSocketMock.setup()
 
   //TODO: why does it need executionContext

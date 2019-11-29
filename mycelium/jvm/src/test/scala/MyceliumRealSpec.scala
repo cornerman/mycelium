@@ -19,8 +19,10 @@ import akka.http.scaladsl.Http
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
+import org.scalatest.freespec.AsyncFreeSpec
+import org.scalatest.matchers.must.Matchers
 
-class MyceliumRealSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
+class MyceliumRealSpec extends AsyncFreeSpec with Matchers with BeforeAndAfterAll {
   //TODO: why does it need executionContext
   implicit override def executionContext = scala.concurrent.ExecutionContext.Implicits.global
 
