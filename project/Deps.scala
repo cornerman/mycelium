@@ -17,6 +17,6 @@ object Deps {
     val testkit = dep("com.typesafe.akka" %% "akka-testkit" % version)
   }
   val chameleon = dep("com.github.cornerman" %%% "chameleon" % "0.2.0")
-  val boopickle = dep("io.suzaku" %%% "boopickle" % "1.3.1")
+  val boopickle = dep("io.suzaku" %%% "boopickle" % "1.3.3")
   val scribe = dep("com.outr" %%% "scribe" % "2.7.10")
 }
