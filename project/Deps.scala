@@ -7,7 +7,7 @@ object Deps {
 
   val scalaTest = dep("org.scalatest" %%% "scalatest" % "3.2.0")
   val scalajs = new {
-    val dom = dep("org.scala-js" %%% "scalajs-dom" % "0.9.8")
+    val dom = dep("org.scala-js" %%% "scalajs-dom" % "1.0.0")
   }
   val akka = new {
     private val version = "2.6.6"
@@ -16,7 +16,7 @@ object Deps {
     val actor = dep("com.typesafe.akka" %% "akka-actor" % version)
     val testkit = dep("com.typesafe.akka" %% "akka-testkit" % version)
   }
-  val chameleon = dep("com.github.cornerman" %%% "chameleon" % "0.2.0")
-  val boopickle = dep("io.suzaku" %%% "boopickle" % "1.3.1")
-  val scribe = dep("com.outr" %%% "scribe" % "2.7.10")
+  val chameleon = dep("com.github.cornerman" %%% "chameleon" % "0.3.0")
+  val boopickle = dep("io.suzaku" %%% "boopickle" % "1.3.3")
+  val scribe = dep("com.outr" %%% "scribe" % "2.7.12")
 }

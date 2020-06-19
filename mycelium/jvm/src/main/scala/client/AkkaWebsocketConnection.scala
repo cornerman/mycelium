@@ -4,7 +4,7 @@ import mycelium.core.AkkaMessageBuilder
 
 import akka.actor._
 import akka.http.scaladsl.Http
-import akka.stream.{ ActorMaterializer, OverflowStrategy, QueueOfferResult }
+import akka.stream.{ Materializer, OverflowStrategy, QueueOfferResult }
 import akka.stream.scaladsl._
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.ws._
@@ -12,7 +12,7 @@ import akka.http.scaladsl.settings.ClientConnectionSettings
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.{Success, Failure}
 
-class AkkaWebsocketConnection[PickleType](bufferSize: Int, overflowStrategy: OverflowStrategy)(implicit system: ActorSystem, materializer: ActorMaterializer, builder: AkkaMessageBuilder[PickleType]) extends WebsocketConnection[PickleType] {
+class AkkaWebsocketConnection[PickleType](bufferSize: Int, overflowStrategy: OverflowStrategy)(implicit system: ActorSystem, materializer: Materializer, builder: AkkaMessageBuilder[PickleType]) extends WebsocketConnection[PickleType] {
   import system.dispatcher
 
   private val (outgoing, outgoingMaterialized) = {

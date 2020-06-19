@@ -11,7 +11,7 @@ import java.nio.ByteBuffer
 import chameleon._
 import chameleon.ext.boopickle._
 import akka.actor.ActorSystem
-import akka.stream.{ActorMaterializer, OverflowStrategy}
+import akka.stream.OverflowStrategy
 import akka.stream.scaladsl._
 
 import scala.concurrent.Future
@@ -20,11 +20,7 @@ import org.scalatest.freespec.AsyncFreeSpec
 import org.scalatest.matchers.must.Matchers
 
 class MyceliumSpec extends AsyncFreeSpec with Matchers with BeforeAndAfterAll {
-  //TODO: why does it need executionContext
-  implicit override def executionContext = scala.concurrent.ExecutionContext.Implicits.global
-
   implicit val system = ActorSystem()
-  implicit val materializer = ActorMaterializer()
 
   override def afterAll(): Unit = {
     system.terminate()

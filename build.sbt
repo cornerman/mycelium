@@ -2,8 +2,8 @@ inThisBuild(Seq(
   organization := "com.github.cornerman",
   version      := "0.1.0-SNAPSHOT",
 
-  scalaVersion := "2.12.10",
-  crossScalaVersions := Seq("2.12.10", "2.13.0"),
+  scalaVersion := "2.12.11",
+  crossScalaVersions := Seq("2.12.11", "2.13.2"),
 
   resolvers ++=
     ("jitpack" at "https://jitpack.io") ::
@@ -41,14 +41,14 @@ lazy val commonSettings = Seq(
 )
 
 lazy val root = (project in file("."))
-  .aggregate(myceliumJS, myceliumJVM)
+  .aggregate(mycelium.js, mycelium.jvm)
   .settings(commonSettings)
   .settings(
     publish := {},
     publishLocal := {},
   )
 
-lazy val mycelium = crossProject
+lazy val mycelium = crossProject(JVMPlatform, JSPlatform)
   .settings(commonSettings)
   .settings(
     name := "mycelium",
@@ -66,12 +66,10 @@ lazy val mycelium = crossProject
       Deps.akka.actor.value ::
       Deps.akka.stream.value ::
       Deps.akka.testkit.value % Test ::
-      Nil
+      Nil,
+    // Test / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Flat
   )
   .jsSettings(
-    scalacOptions ++=
-      "-P:scalajs:sjsDefinedByDefault" ::
-      Nil,
     npmDependencies in Compile ++=
       "reconnecting-websocket" -> "4.1.10" ::
       Nil,
@@ -82,7 +80,6 @@ lazy val mycelium = crossProject
       Deps.scalajs.dom.value ::
       Nil
   )
-
-lazy val myceliumJVM = mycelium.jvm
-lazy val myceliumJS = mycelium.js
-  .enablePlugins(ScalaJSPlugin, ScalaJSBundlerPlugin)
+  .jsConfigure(
+    _.enablePlugins(ScalaJSBundlerPlugin)
+  )
