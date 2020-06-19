@@ -11,11 +11,6 @@ import org.scalatest.freespec.AsyncFreeSpec
 import org.scalatest.matchers.must.Matchers
 
 class MyceliumSpec extends AsyncFreeSpec with Matchers {
-  WebSocketMock.setup()
-
-  //TODO: why does it need executionContext
-  implicit override def executionContext = scala.concurrent.ExecutionContext.Implicits.global
-
   type Payload = String
   type Event = String
   type Failure = Int

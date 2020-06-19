@@ -4,34 +4,29 @@ import org.scalatest._
 
 import mycelium.client._
 import mycelium.server._
-import mycelium.core._
-import mycelium.core.message._
 import boopickle.Default._
 import java.nio.ByteBuffer
-import chameleon._
 import chameleon.ext.boopickle._
 import akka.actor.ActorSystem
-import akka.stream.{ActorMaterializer, OverflowStrategy}
-import akka.stream.scaladsl._
+import akka.stream.OverflowStrategy
 import akka.http.scaladsl.server.RouteResult._
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.Http
 
-import scala.concurrent.Future
+import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
 import org.scalatest.freespec.AsyncFreeSpec
 import org.scalatest.matchers.must.Matchers
 
 class MyceliumRealSpec extends AsyncFreeSpec with Matchers with BeforeAndAfterAll {
-  //TODO: why does it need executionContext
-  implicit override def executionContext = scala.concurrent.ExecutionContext.Implicits.global
-
   implicit val system = ActorSystem()
-  implicit val materializer = ActorMaterializer()
   val port = 9899
 
   override def afterAll(): Unit = {
-    system.terminate()
+    val b = Await.result(binding, 1.second)
+    b.terminate(hardDeadline = 1.second).flatMap{ _ =>
+      system.terminate()
+    }
     ()
   }
 
@@ -46,7 +41,7 @@ class MyceliumRealSpec extends AsyncFreeSpec with Matchers with BeforeAndAfterAl
   }
   val server = WebsocketServer.withPayload(config, handler)
   val route = handleWebSocketMessages(server.flow())
-  Http().bindAndHandle(route, interface = "0.0.0.0", port = port)
+  val binding = Http().bindAndHandle(route, interface = "0.0.0.0", port = port)
 
   "client with akka" in {
     val client = WebsocketClient.withPayload[ByteBuffer, Payload, Event, Failure](
