@@ -41,7 +41,7 @@ class MyceliumRealSpec extends AsyncFreeSpec with Matchers with BeforeAndAfterAl
   }
   val server = WebsocketServer.withPayload(config, handler)
   val route = handleWebSocketMessages(server.flow())
-  val binding = Http().bindAndHandle(route, interface = "0.0.0.0", port = port)
+  val binding = Http().newServerAt("0.0.0.0", port).bindFlow(route)
 
   "client with akka" in {
     val client = WebsocketClient.withPayload[ByteBuffer, Payload, Event, Failure](
