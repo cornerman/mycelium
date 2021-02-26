@@ -3,7 +3,7 @@ inThisBuild(Seq(
   version      := "0.1.0-SNAPSHOT",
 
   scalaVersion := "2.12.11",
-  crossScalaVersions := Seq("2.12.11", "2.13.2"),
+  crossScalaVersions := Seq("2.12.11", "2.13.5"),
 
   resolvers ++=
     ("jitpack" at "https://jitpack.io") ::
