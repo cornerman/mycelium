@@ -40,18 +40,12 @@ lazy val commonSettings = Seq(
   }
 )
 
-lazy val root = (project in file("."))
-  .aggregate(mycelium.js, mycelium.jvm)
+lazy val core = crossProject(JVMPlatform, JSPlatform)
+  .crossType(CrossType.Pure)
+  .in(file("core"))
   .settings(commonSettings)
   .settings(
-    publish := {},
-    publishLocal := {},
-  )
-
-lazy val mycelium = crossProject(JVMPlatform, JSPlatform)
-  .settings(commonSettings)
-  .settings(
-    name := "mycelium",
+    name := "mycelium-core",
     libraryDependencies ++=
       Deps.scribe.value ::
       Deps.chameleon.value ::
@@ -60,16 +54,14 @@ lazy val mycelium = crossProject(JVMPlatform, JSPlatform)
       Deps.scalaTest.value % Test ::
       Nil
   )
-  .jvmSettings(
-    libraryDependencies ++=
-      Deps.akka.http.value ::
-      Deps.akka.actor.value ::
-      Deps.akka.stream.value ::
-      Deps.akka.testkit.value % Test ::
-      Nil,
-    // Test / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Flat
-  )
-  .jsSettings(
+
+lazy val clientJS = project
+  .in(file("client-js"))
+  .enablePlugins(ScalaJSPlugin, ScalaJSBundlerPlugin)
+  .dependsOn(core.js)
+  .settings(commonSettings)
+  .settings(
+    name := "mycelium-client-js",
     npmDependencies in Compile ++=
       "reconnecting-websocket" -> "4.1.10" ::
       Nil,
@@ -80,6 +72,25 @@ lazy val mycelium = crossProject(JVMPlatform, JSPlatform)
       Deps.scalajs.dom.value ::
       Nil
   )
-  .jsConfigure(
-    _.enablePlugins(ScalaJSBundlerPlugin)
+
+lazy val akka = project
+  .in(file("akka"))
+  .dependsOn(core.jvm)
+  .settings(commonSettings)
+  .settings(
+    name := "mycelium-akka",
+    libraryDependencies ++=
+      Deps.akka.http.value ::
+      Deps.akka.actor.value ::
+      Deps.akka.stream.value ::
+      Deps.akka.testkit.value % Test ::
+      Nil,
   )
+
+lazy val root = project
+  .in(file("."))
+  .settings(
+    name := "mycelium-root",
+    skip in publish := true,
+  )
+  .aggregate(core.js, core.jvm, clientJS, akka)
