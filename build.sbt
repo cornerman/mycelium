@@ -11,6 +11,12 @@ inThisBuild(Seq(
 ))
 
 lazy val commonSettings = Seq(
+
+  libraryDependencies ++=
+    Deps.boopickle.value % Test ::
+    Deps.scalaTest.value % Test ::
+    Nil,
+
   scalacOptions ++=
     "-encoding" :: "UTF-8" ::
     "-unchecked" ::
@@ -49,9 +55,6 @@ lazy val core = crossProject(JVMPlatform, JSPlatform)
     libraryDependencies ++=
       Deps.scribe.value ::
       Deps.chameleon.value ::
-
-      Deps.boopickle.value % Test ::
-      Deps.scalaTest.value % Test ::
       Nil
   )
 
