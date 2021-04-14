@@ -1,4 +1,4 @@
-package mycelium.server
+package mycelium.akka.server
 
 import akka.actor._
 import mycelium.core.message._
@@ -13,19 +13,24 @@ object DisconnectReason {
 }
 
 class NotifiableClient[Event, State](actor: ActorRef) {
-  private[mycelium] case class Notify(event: Future[State] => Future[List[Event]])
-  def notify(eventsf: Future[State] => Future[List[Event]]): Unit = actor ! Notify(eventsf)
+  private[mycelium] case class Notify(
+      event: Future[State] => Future[List[Event]]
+  )
+  def notify(eventsf: Future[State] => Future[List[Event]]): Unit =
+    actor ! Notify(eventsf)
 }
 
 private[mycelium] class ConnectedClient[Payload, Event, Failure, State](
-  handler: RequestHandler[Payload, Event, Failure, State]) extends Actor {
+    handler: RequestHandler[Payload, Event, Failure, State]
+) extends Actor {
   import ConnectedClient._
   import handler._
   import context.dispatcher
 
   def connected(outgoing: ActorRef) = {
-    val client = new NotifiableClient[Event,State](self)
-    def sendEvents(events: List[Event]): Unit = if (events.nonEmpty) outgoing ! Notification(events)
+    val client = new NotifiableClient[Event, State](self)
+    def sendEvents(events: List[Event]): Unit =
+      if (events.nonEmpty) outgoing ! Notification(events)
     def stopActor(state: Future[State], reason: DisconnectReason): Unit = {
       onClientDisconnect(client, state, reason)
       context.stop(self)
@@ -39,7 +44,7 @@ private[mycelium] class ConnectedClient[Payload, Event, Failure, State](
     def withState(state: Future[State]): Receive = {
       case Ping() => outgoing ! Pong()
 
-      case CallRequest(seqId, path, args: Payload@unchecked) =>
+      case CallRequest(seqId, path, args: Payload @unchecked) =>
         val response = onRequest(client, state, path, args)
         response.value.foreach { value =>
           outgoing ! CallResponse(seqId, value.result)
@@ -67,7 +72,7 @@ private[mycelium] class ConnectedClient[Payload, Event, Failure, State](
 
   def receive = {
     case Connect(outgoing) => context.become(connected(outgoing))
-    case Stop => context.stop(self)
+    case Stop              => context.stop(self)
   }
 }
 private[mycelium] object ConnectedClient {

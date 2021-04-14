@@ -1,11 +1,11 @@
-package mycelium.client
+package mycelium.core.client
 
-import org.scalatest._
 import org.scalatest.freespec.AsyncFreeSpec
 import org.scalatest.matchers.must.Matchers
 
 class RequestMapSpec extends AsyncFreeSpec with Matchers {
-  implicit override def executionContext = scala.concurrent.ExecutionContext.Implicits.global
+  implicit override def executionContext =
+    scala.concurrent.ExecutionContext.Implicits.global
 
   "open requests" - {
     "unique sequence ids" in {

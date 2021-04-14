@@ -1,10 +1,9 @@
-package mycelium.server
+package mycelium.akka.server
 
 import akka.actor._
-import akka.testkit.{ ImplicitSender, TestActorRef, TestKit }
+import akka.testkit.{ImplicitSender, TestActorRef, TestKit}
 import boopickle.Default._
 import java.nio.ByteBuffer
-import org.scalatest._
 import mycelium.core.message._
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -14,18 +13,27 @@ import scala.collection.mutable
 import org.scalatest.freespec.AnyFreeSpecLike
 import org.scalatest.matchers.must.Matchers
 
-class TestRequestHandler extends FullRequestHandler[ByteBuffer, String, String, Option[String]] {
+class TestRequestHandler
+    extends FullRequestHandler[ByteBuffer, String, String, Option[String]] {
   val clients = mutable.HashSet.empty[NotifiableClient[String, Option[String]]]
   val events = mutable.ArrayBuffer.empty[String]
 
   override val initialState = Future.successful(None)
 
-  override def onRequest(client: NotifiableClient[String, Option[String]], state: Future[Option[String]], path: List[String], args: ByteBuffer) = {
-    def deserialize[S : Pickler](ts: ByteBuffer) = Unpickle[S].fromBytes(ts)
-    def serialize[S : Pickler](ts: S) = Right(Pickle.intoBytes[S](ts))
-    def value[S : Pickler](ts: S, events: List[String] = Nil) = Future.successful(ReturnValue(serialize(ts), events))
-    def valueFut[S : Pickler](ts: Future[S], events: List[String] = Nil) = ts.map(ts => ReturnValue(serialize(ts), events))
-    def error(ts: String, events: List[String] = Nil) = Future.successful(ReturnValue(Left(ts), events))
+  override def onRequest(
+      client: NotifiableClient[String, Option[String]],
+      state: Future[Option[String]],
+      path: List[String],
+      args: ByteBuffer
+  ) = {
+    def deserialize[S: Pickler](ts: ByteBuffer) = Unpickle[S].fromBytes(ts)
+    def serialize[S: Pickler](ts: S) = Right(Pickle.intoBytes[S](ts))
+    def value[S: Pickler](ts: S, events: List[String] = Nil) =
+      Future.successful(ReturnValue(serialize(ts), events))
+    def valueFut[S: Pickler](ts: Future[S], events: List[String] = Nil) =
+      ts.map(ts => ReturnValue(serialize(ts), events))
+    def error(ts: String, events: List[String] = Nil) =
+      Future.successful(ReturnValue(Left(ts), events))
 
     path match {
       case "true" :: Nil =>
@@ -50,27 +58,43 @@ class TestRequestHandler extends FullRequestHandler[ByteBuffer, String, String, 
     }
   }
 
-  override def onEvent(client: NotifiableClient[String, Option[String]], state: Future[Option[String]], newEvents: List[String]) = {
+  override def onEvent(
+      client: NotifiableClient[String, Option[String]],
+      state: Future[Option[String]],
+      newEvents: List[String]
+  ) = {
     events ++= newEvents
     val downstreamEvents = newEvents.map(event => s"${event}-ok")
     Reaction(state, Future.successful(downstreamEvents))
   }
 
-  override def onClientConnect(client: NotifiableClient[String, Option[String]], state: Future[Option[String]]): Unit = {
+  override def onClientConnect(
+      client: NotifiableClient[String, Option[String]],
+      state: Future[Option[String]]
+  ): Unit = {
     client.notify(_ => Future.successful("started" :: Nil))
     clients += client
     ()
   }
-  override def onClientDisconnect(client: NotifiableClient[String, Option[String]], state: Future[Option[String]], reason: DisconnectReason): Unit = {
+  override def onClientDisconnect(
+      client: NotifiableClient[String, Option[String]],
+      state: Future[Option[String]],
+      reason: DisconnectReason
+  ): Unit = {
     clients -= client
     ()
   }
 }
 
-class ConnectedClientSpec extends TestKit(ActorSystem("ConnectedClientSpec")) with ImplicitSender with AnyFreeSpecLike with Matchers {
+class ConnectedClientSpec
+    extends TestKit(ActorSystem("ConnectedClientSpec"))
+    with ImplicitSender
+    with AnyFreeSpecLike
+    with Matchers {
 
   def requestHandler = new TestRequestHandler
-  def newActor(handler: TestRequestHandler = requestHandler): ActorRef = TestActorRef(new ConnectedClient(handler))
+  def newActor(handler: TestRequestHandler = requestHandler): ActorRef =
+    TestActorRef(new ConnectedClient(handler))
   def connectActor(actor: ActorRef, shouldConnect: Boolean = true) = {
     actor ! ConnectedClient.Connect(self)
     if (shouldConnect) expectMsg(Notification(List("started-ok")))
@@ -151,7 +175,8 @@ class ConnectedClientSpec extends TestKit(ActorSystem("ConnectedClientSpec")) wi
         1 seconds,
         CallResponse(1, Right(pickledResponse1)),
         CallResponse(2, Right(pickledResponse2)),
-        CallResponse(3, Right(pickledResponse3)))
+        CallResponse(3, Right(pickledResponse3))
+      )
     }
 
     "failed state stops actor" in connectedActor { (actor, handler) =>
@@ -167,11 +192,11 @@ class ConnectedClientSpec extends TestKit(ActorSystem("ConnectedClientSpec")) wi
       expectMsgAllOf(
         1 seconds,
         CallResponse(1, Right(pickledResponse1)),
-        CallResponse(2, Right(pickledResponse2)))
+        CallResponse(2, Right(pickledResponse2))
+      )
 
       handler.clients.size mustEqual 0
     }
-
 
     "send event" in connectedActor { actor =>
       actor ! CallRequest(2, List("event"), noArg)
@@ -180,7 +205,8 @@ class ConnectedClientSpec extends TestKit(ActorSystem("ConnectedClientSpec")) wi
       expectMsgAllOf(
         1 seconds,
         Notification(List("event")),
-        CallResponse(2, Right(pickledResponse)))
+        CallResponse(2, Right(pickledResponse))
+      )
     }
   }
 

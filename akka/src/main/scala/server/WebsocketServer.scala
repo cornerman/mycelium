@@ -1,7 +1,6 @@
-package mycelium.server
+package mycelium.akka.server
 
 import mycelium.akka.core.AkkaMessageBuilder
-import mycelium.core._
 import mycelium.core.message._
 import chameleon._
 
