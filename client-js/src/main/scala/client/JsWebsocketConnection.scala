@@ -2,6 +2,7 @@ package mycelium.js.client
 
 import mycelium.js.core.JsMessageBuilder
 import mycelium.js.client.raw._
+import mycelium.core.Cancelable
 import mycelium.core.client._
 
 import org.scalajs.dom._
@@ -46,7 +47,7 @@ class JsWebsocketConnection[PickleType](implicit
       wsConfig: WebsocketClientConfig,
       pingMessage: PickleType,
       listener: WebsocketListener[PickleType]
-  ): Unit = if (wsOpt.isEmpty) {
+  ): Cancelable = if (wsOpt.isEmpty) {
     def sendPing(): Unit = wsOpt.foreach(rawSend(_, pingMessage))
     val keepAliveTracker =
       new KeepAliveTracker(wsConfig.pingInterval, sendPing _)
@@ -109,5 +110,11 @@ class JsWebsocketConnection[PickleType](implicit
           )
       }
     }
-  }
+
+    Cancelable { () =>
+      websocket.close()
+      this.keepAliveTracker = None
+      this.wsOpt = None
+    }
+  } else throw new Exception("Websocket already running")
 }
