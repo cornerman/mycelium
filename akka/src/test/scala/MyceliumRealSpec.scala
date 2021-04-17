@@ -63,7 +63,7 @@ class MyceliumRealSpec
         new IncidentHandler[Event]
       )
 
-    client.run(s"ws://localhost:$port")
+    client.run(() => s"ws://localhost:$port")
     val res =
       client.send("foo" :: "bar" :: Nil, 1, SendType.WhenConnected, 30 seconds)
     res.map(_ mustEqual Right(1))

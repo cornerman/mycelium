@@ -13,10 +13,10 @@ import scala.concurrent.{ExecutionContext, Future}
 
 class JsWebsocketConnection[PickleType](implicit
     builder: JsMessageBuilder[PickleType],
-    ec: ExecutionContext
+    ec: ExecutionContext,
 ) extends WebsocketConnection[PickleType] {
 
-  private var wsOpt: Option[WebSocket] = None
+  private var wsOpt: Option[WebSocket]                   = None
   private var keepAliveTracker: Option[KeepAliveTracker] = None
   private def rawSend(ws: WebSocket, rawMessage: PickleType): Try[Unit] = {
     val message = builder.pack(rawMessage)
@@ -43,17 +43,14 @@ class JsWebsocketConnection[PickleType](implicit
     messageSender.sendOrBuffer(value)
 
   def run(
-      location: String,
+      location: () => String,
       wsConfig: WebsocketClientConfig,
       pingMessage: PickleType,
-      listener: WebsocketListener[PickleType]
+      listener: WebsocketListener[PickleType],
   ): Cancelable = if (wsOpt.isEmpty) {
     def sendPing(): Unit = wsOpt.foreach(rawSend(_, pingMessage))
-    val keepAliveTracker =
-      new KeepAliveTracker(wsConfig.pingInterval, sendPing _)
-    this.keepAliveTracker = Some(
-      keepAliveTracker
-    ) //TODO should not set this here
+    val keepAliveTracker = new KeepAliveTracker(wsConfig.pingInterval, sendPing _)
+    this.keepAliveTracker = Some(keepAliveTracker) //TODO should not set this here
 
     val websocket = new ReconnectingWebSocket(
       location,
@@ -67,7 +64,7 @@ class JsWebsocketConnection[PickleType](implicit
         override val connectionTimeout: js.UndefOr[Int] =
           wsConfig.connectingTimeout.toMillis.toInt
         override val debug: js.UndefOr[Boolean] = false
-      }
+      },
     )
 
     websocket.onerror = { (e: Event) =>
@@ -101,12 +98,12 @@ class JsWebsocketConnection[PickleType](implicit
             case Some(value) => listener.onMessage(value)
             case None =>
               scribe.warn(
-                s"Ignoring websocket message. Builder does not support message (${e.data})"
+                s"Ignoring websocket message. Builder does not support message (${e.data})",
               )
           }
         case Failure(t) =>
           scribe.warn(
-            s"Ignoring websocket message. Builder failed to unpack message (${e.data}): $t"
+            s"Ignoring websocket message. Builder failed to unpack message (${e.data}): $t",
           )
       }
     }
