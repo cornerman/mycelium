@@ -46,7 +46,7 @@ class AkkaWebsocketConnection[PickleType](
 
   //TODO return result signaling closed
   def run(
-      location: String,
+      location: () => String,
       wsConfig: WebsocketClientConfig,
       pingMessage: PickleType,
       listener: WebsocketListener[PickleType]
@@ -79,7 +79,7 @@ class AkkaWebsocketConnection[PickleType](
     ) { () =>
       Http()
         .webSocketClientFlow(
-          WebSocketRequest(location),
+          WebSocketRequest(location()),
           settings = ClientConnectionSettings(system).withConnectingTimeout(
             wsConfig.connectingTimeout
           )

@@ -12,7 +12,7 @@ trait WebsocketConnection[PickleType] {
   def send(value: WebsocketMessage[PickleType]): Unit
 
   def run(
-      location: String,
+      location: () => String,
       wsConfig: WebsocketClientConfig,
       pingMessage: PickleType,
       listener: WebsocketListener[PickleType]
