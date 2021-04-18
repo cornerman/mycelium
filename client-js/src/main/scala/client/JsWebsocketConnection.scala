@@ -53,7 +53,7 @@ class JsWebsocketConnection[PickleType](implicit
     this.keepAliveTracker = Some(keepAliveTracker) //TODO should not set this here
 
     val websocket = new ReconnectingWebSocket(
-      location,
+      location: js.Function0[String],
       options = new ReconnectingWebsocketOptions {
         override val maxReconnectionDelay: js.UndefOr[Int] =
           wsConfig.maxReconnectDelay.toMillis.toInt
