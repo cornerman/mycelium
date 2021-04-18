@@ -29,6 +29,6 @@ trait ReconnectingWebsocketOptions extends js.Object {
 @js.native
 @JSImport("reconnecting-websocket", JSImport.Default)
 class ReconnectingWebSocket(
-  url: String | (() => String),
+  url: String | js.Function0[String],
   protocols: String | Array[String] = null,
   options: ReconnectingWebsocketOptions = null) extends WebSocket
