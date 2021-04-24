@@ -28,12 +28,9 @@ class WebsocketClientWithPayload[PickleType, Payload, Event, Failure](
     ],
 ) {
 
-  def send(
-      path: List[String],
-      payload: Payload,
-      sendType: SendType,
-      requestTimeout: FiniteDuration,
-  )(implicit ec: ExecutionContext): Future[Either[Failure, Payload]] = {
+  def send(path: List[String], payload: Payload, sendType: SendType, requestTimeout: FiniteDuration)(implicit
+      ec: ExecutionContext,
+  ): Future[Either[Failure, Payload]] = {
     val (seqId, promise) = requestMap.open()
     val request          = CallRequest(seqId, path, payload)
     val pickledRequest   = serializer.serialize(request)
@@ -41,12 +38,7 @@ class WebsocketClientWithPayload[PickleType, Payload, Event, Failure](
       case SendType.NowOrFail =>
         WebsocketMessage.Direct(pickledRequest, promise, requestTimeout)
       case SendType.WhenConnected(priority) =>
-        WebsocketMessage.Buffered(
-          pickledRequest,
-          promise,
-          requestTimeout,
-          priority,
-        )
+        WebsocketMessage.Buffered(pickledRequest, promise, requestTimeout, priority)
     }
 
     ws.send(message)
@@ -59,7 +51,7 @@ class WebsocketClientWithPayload[PickleType, Payload, Event, Failure](
   def run(location: () => String): Cancelable = ws.run(
     location,
     wsConfig,
-    serializer.serialize(Ping()),
+    serializer.serialize(Ping),
     new WebsocketListener[PickleType] {
       def onConnect() = handler.onConnect()
       def onClose()   = handler.onClose()
@@ -80,7 +72,7 @@ class WebsocketClientWithPayload[PickleType, Payload, Event, Failure](
             }
           case Right(Notification(events)) =>
             handler.onEvents(events)
-          case Right(Pong()) =>
+          case Right(Pong) =>
           // do nothing
           case Left(error) =>
             scribe.warn(s"Ignoring message. Deserializer failed: $error")

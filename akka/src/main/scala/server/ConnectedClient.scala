@@ -7,21 +7,21 @@ import scala.concurrent.Future
 
 sealed trait DisconnectReason
 object DisconnectReason {
-  case object Stopped extends DisconnectReason
-  case object Killed extends DisconnectReason
+  case object Stopped                        extends DisconnectReason
+  case object Killed                         extends DisconnectReason
   case class StateFailed(failure: Throwable) extends DisconnectReason
 }
 
 class NotifiableClient[Event, State](actor: ActorRef) {
   private[mycelium] case class Notify(
-      event: Future[State] => Future[List[Event]]
+      event: Future[State] => Future[List[Event]],
   )
   def notify(eventsf: Future[State] => Future[List[Event]]): Unit =
     actor ! Notify(eventsf)
 }
 
 private[mycelium] class ConnectedClient[Payload, Event, Failure, State](
-    handler: RequestHandler[Payload, Event, Failure, State]
+    handler: RequestHandler[Payload, Event, Failure, State],
 ) extends Actor {
   import ConnectedClient._
   import handler._
@@ -42,7 +42,7 @@ private[mycelium] class ConnectedClient[Payload, Event, Failure, State](
       withState(state)
     }
     def withState(state: Future[State]): Receive = {
-      case Ping() => outgoing ! Pong()
+      case Ping => outgoing ! Pong
 
       case CallRequest(seqId, path, args: Payload @unchecked) =>
         val response = onRequest(client, state, path, args)
