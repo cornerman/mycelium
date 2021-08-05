@@ -11,7 +11,7 @@ object Deps {
   }
   val akka = new {
     private val version = "2.6.6"
-    val http = dep("com.typesafe.akka" %% "akka-http" % "10.2.1")
+    val http = dep("com.typesafe.akka" %% "akka-http" % "10.2.6")
     val stream = dep("com.typesafe.akka" %% "akka-stream" % version)
     val actor = dep("com.typesafe.akka" %% "akka-actor" % version)
     val testkit = dep("com.typesafe.akka" %% "akka-testkit" % version)
