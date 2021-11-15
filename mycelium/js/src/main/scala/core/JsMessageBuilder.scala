@@ -1,6 +1,6 @@
 package mycelium.core
 
-import org.scalajs.dom.{Event,UIEvent, FileReader, Blob}
+import org.scalajs.dom.{Event, ProgressEvent, FileReader, Blob}
 import scala.scalajs.js.|
 import scala.scalajs.js.typedarray._, TypedArrayBufferOps._
 
@@ -37,7 +37,7 @@ object JsMessageBuilder {
   private def readBlob[R,W](doRead: FileReader => Unit)(conv: R => W): Future[Option[W]] = {
     val promise = Promise[Option[W]]()
     val reader = new FileReader
-    reader.onload = (_:UIEvent) => {
+    reader.onload = (_:ProgressEvent) => {
       val s = reader.result.asInstanceOf[R]
       promise.success(Option(conv(s)))
     }
