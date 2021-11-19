@@ -29,13 +29,13 @@ class MyceliumSpec extends AsyncFreeSpec with Matchers {
       "foo" :: "bar" :: Nil,
       "harals",
       SendType.NowOrFail,
-      30 seconds
+      30.seconds
     )
     val res2 = client.send(
       "foo" :: "bar" :: Nil,
       "harals",
       SendType.WhenConnected,
-      30 seconds
+      30.seconds
     )
 
     res.failed.map(_ mustEqual DroppedMessageException)

@@ -65,7 +65,7 @@ class MyceliumRealSpec
 
     client.run(() => s"ws://localhost:$port")
     val res =
-      client.send("foo" :: "bar" :: Nil, 1, SendType.WhenConnected, 30 seconds)
+      client.send("foo" :: "bar" :: Nil, 1, SendType.WhenConnected, 30.seconds)
     res.map(_ mustEqual Right(1))
   }
 }

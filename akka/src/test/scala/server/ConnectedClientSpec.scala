@@ -114,13 +114,13 @@ class ConnectedClientSpec
   }
 
   val noArg = ByteBuffer.wrap(Array.empty)
-  override def expectNoMessage(): Unit = expectNoMessage(1 seconds)
+  override def expectNoMessage(): Unit = expectNoMessage(1.seconds)
 
   "unconnected" - {
     val actor = newActor()
 
     "no pong" in {
-      actor ! Ping()
+      actor ! Ping
       expectNoMessage()
     }
 
@@ -132,15 +132,15 @@ class ConnectedClientSpec
     "stop" in {
       actor ! ConnectedClient.Stop
       connectActor(actor, shouldConnect = false)
-      actor ! Ping()
+      actor ! Ping
       expectNoMessage()
     }
   }
 
   "ping" - {
     "expect pong" in connectedActor { actor =>
-      actor ! Ping()
-      expectMsg(Pong())
+      actor ! Ping
+      expectMsg(Pong)
     }
   }
 
@@ -172,7 +172,7 @@ class ConnectedClientSpec
       val pickledResponse2 = Pickle.intoBytes[Boolean](true)
       val pickledResponse3 = Pickle.intoBytes[Option[String]](Option("anon"))
       expectMsgAllOf(
-        1 seconds,
+        1.seconds,
         CallResponse(1, Right(pickledResponse1)),
         CallResponse(2, Right(pickledResponse2)),
         CallResponse(3, Right(pickledResponse3))
@@ -190,7 +190,7 @@ class ConnectedClientSpec
       val pickledResponse1 = Pickle.intoBytes[Option[String]](None)
       val pickledResponse2 = Pickle.intoBytes[Boolean](true)
       expectMsgAllOf(
-        1 seconds,
+        1.seconds,
         CallResponse(1, Right(pickledResponse1)),
         CallResponse(2, Right(pickledResponse2))
       )
@@ -203,7 +203,7 @@ class ConnectedClientSpec
 
       val pickledResponse = Pickle.intoBytes[Boolean](true)
       expectMsgAllOf(
-        1 seconds,
+        1.seconds,
         Notification(List("event")),
         CallResponse(2, Right(pickledResponse))
       )
@@ -214,7 +214,7 @@ class ConnectedClientSpec
     "stops actor" in connectedActor { (actor, handler) =>
       handler.clients.size mustEqual 1
       actor ! ConnectedClient.Stop
-      actor ! Ping()
+      actor ! Ping
       expectNoMessage()
       handler.clients.size mustEqual 0
     }
