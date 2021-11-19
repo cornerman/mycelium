@@ -33,12 +33,21 @@ lazy val commonSettings = Seq(
     Nil,
 )
 
+lazy val jsSettings = Seq(
+  scalacOptions += {
+    val githubRepo    = "cornerman/mycelium"
+    val local         = baseDirectory.value.toURI
+    val subProjectDir = baseDirectory.value.getName
+    val remote        = s"https://raw.githubusercontent.com/${githubRepo}/${git.gitHeadCommit.value.get}"
+    s"-P:scalajs:mapSourceURI:$local->$remote/${subProjectDir}/"
+  },
 )
 
 lazy val core = crossProject(JVMPlatform, JSPlatform)
   .crossType(CrossType.Pure)
   .in(file("core"))
   .settings(commonSettings)
+  .jsSettings(jsSettings)
   .settings(
     name := "mycelium-core",
     libraryDependencies ++=
@@ -52,6 +61,7 @@ lazy val clientJS = project
   .enablePlugins(ScalaJSPlugin, ScalaJSBundlerPlugin)
   .dependsOn(core.js)
   .settings(commonSettings)
+  .settings(jsSettings)
   .settings(
     name := "mycelium-client-js",
     npmDependencies in Compile ++=
