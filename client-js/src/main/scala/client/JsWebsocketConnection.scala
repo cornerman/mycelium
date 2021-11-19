@@ -68,7 +68,7 @@ class JsWebsocketConnection[PickleType](implicit
     )
 
     websocket.onerror = { (e: Event) =>
-      scribe.warn(s"Error in websocket connection: $e")
+      scribe.warn(s"Error in websocket connection: ${e.`type`}")
     }
 
     websocket.onopen = { (_: Event) =>
