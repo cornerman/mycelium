@@ -25,7 +25,11 @@ inThisBuild(Seq(
 ))
 
 lazy val commonSettings = Seq(
-  scalacOptions --= Seq("-Ywarn-unused:params", "-Wunused:params"),
+  scalacOptions --= Seq(
+    "-Wunused:explicits",
+    "-Ywarn-unused:params",
+    "-Wunused:params",
+  ),
 
   libraryDependencies ++=
     Deps.boopickle.value % Test ::

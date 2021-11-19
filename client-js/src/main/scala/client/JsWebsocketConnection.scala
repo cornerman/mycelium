@@ -24,6 +24,7 @@ class JsWebsocketConnection[PickleType](implicit
       case s: String      => Try(ws.send(s))
       case a: ArrayBuffer => Try(ws.send(a))
       case b: Blob        => Try(ws.send(b))
+      case _              => ???
     }
   }
   private val messageSender =

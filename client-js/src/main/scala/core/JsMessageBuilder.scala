@@ -26,7 +26,7 @@ object JsMessageBuilder {
     }
   }
   implicit val JsMessageBuilderByteBuffer = new JsMessageBuilder[ByteBuffer] {
-    def pack(msg: ByteBuffer): Message = msg.arrayBuffer.slice(msg.position, msg.limit)
+    def pack(msg: ByteBuffer): Message = msg.arrayBuffer().slice(msg.position, msg.limit)
     def unpack(m: Message): Future[Option[ByteBuffer]] = (m: Any) match {
       case a: ArrayBuffer => Future.successful(Option(TypedArrayBuffer.wrap(a)))
       case b: Blob => readBlob[ArrayBuffer, ByteBuffer](_.readAsArrayBuffer(b))(TypedArrayBuffer.wrap(_))

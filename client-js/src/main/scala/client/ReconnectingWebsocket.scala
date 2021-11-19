@@ -5,7 +5,6 @@ import org.scalajs.dom._
 import scala.scalajs.js
 import scala.scalajs.js.|
 import scala.scalajs.js.annotation.JSImport
-import org.scalajs.dom._
 
 object WebSocketConstructor {
   type Type = (String, String) => WebSocket

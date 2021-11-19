@@ -32,7 +32,7 @@ class AkkaWebsocketConnection[PickleType](
   private var isStarted = false
 
   private val (outgoing, outgoingMaterialized) = {
-    val promise = Promise[SourceQueue[Message]]
+    val promise = Promise[SourceQueue[Message]]()
     val source = Source
       .queue[Message](bufferSize, overflowStrategy)
       .mapMaterializedValue { m => promise.success(m); m }
@@ -157,7 +157,7 @@ private[client] class SendActor[PickleType](
       messageSender.trySendBuffer()
     case Closed =>
       isConnected = false
-    case message: WebsocketMessage[PickleType] =>
+    case message: WebsocketMessage[PickleType@unchecked] =>
       messageSender.sendOrBuffer(message)
   }
 }
