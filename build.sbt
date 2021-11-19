@@ -1,10 +1,27 @@
 inThisBuild(Seq(
   organization := "com.github.cornerman",
-  version      := "0.1.0-SNAPSHOT",
 
   scalaVersion := "2.12.15",
   crossScalaVersions := Seq("2.12.15", "2.13.7"),
 
+  licenses := Seq("MIT License" -> url("https://opensource.org/licenses/MIT")),
+
+  homepage := Some(url("https://github.com/cornerman/mycelium")),
+
+  scmInfo := Some(ScmInfo(
+    url("https://github.com/cornerman/mycelium"),
+    "scm:git:git@github.com:cornerman/mycelium.git",
+    Some("scm:git:git@github.com:cornerman/mycelium.git"))
+  ),
+
+  pomExtra :=
+    <developers>
+      <developer>
+        <id>jkaroff</id>
+        <name>Johannes Karoff</name>
+        <url>https://github.com/cornerman</url>
+      </developer>
+    </developers>
 ))
 
 lazy val commonSettings = Seq(
