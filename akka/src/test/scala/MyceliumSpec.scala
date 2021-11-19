@@ -78,7 +78,7 @@ class MyceliumSpec extends AsyncFreeSpec with Matchers with BeforeAndAfterAll {
 
     val (_, received) = flow.runWith(Source(msg :: Nil), Sink.head)
     val response = received.flatMap { msg =>
-      builder.unpack(msg).map(_.map(s => deserializer.deserialize(s).right.get))
+      builder.unpack(msg).map(_.map(s => deserializer.deserialize(s).toOption.get))
     }
 
     val expected = CallResponse(1, Right(payloadValue))
