@@ -30,6 +30,7 @@ object WebsocketServerFlow {
     val connectedClientActor =
       system.actorOf(Props(new ConnectedClient(handler)))
 
+    @annotation.nowarn("cat=deprecation")
     val incoming: Sink[Message, NotUsed] =
       Flow[Message]
         .mapAsync(parallelism = 1) { case m: Message =>
@@ -65,6 +66,7 @@ object WebsocketServerFlow {
           )
         )
 
+    @annotation.nowarn("cat=deprecation")
     val outgoing: Source[Message, NotUsed] =
       Source
         .actorRef[ServerMessage[Payload, Event, Failure]](

@@ -72,6 +72,7 @@ class AkkaWebsocketConnection[PickleType](
         }
     }
 
+    @annotation.nowarn("cat=deprecation")
     val wsFlow = RestartFlow.withBackoff(
       minBackoff = wsConfig.minReconnectDelay,
       maxBackoff = wsConfig.maxReconnectDelay,
