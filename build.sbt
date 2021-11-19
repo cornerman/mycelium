@@ -5,9 +5,6 @@ inThisBuild(Seq(
   scalaVersion := "2.12.15",
   crossScalaVersions := Seq("2.12.15", "2.13.7"),
 
-  resolvers ++=
-    ("jitpack" at "https://jitpack.io") ::
-    Nil
 ))
 
 lazy val commonSettings = Seq(
