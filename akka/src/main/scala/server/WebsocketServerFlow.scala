@@ -15,15 +15,15 @@ object WebsocketServerFlow {
 
   def apply[PickleType, Payload, Event, Failure, State](
       config: WebsocketServerConfig,
-      handler: RequestHandler[Payload, Event, Failure, State]
+      handler: RequestHandler[Payload, Event, Failure, State],
   )(implicit
       system: ActorSystem,
       serializer: Serializer[
         ServerMessage[Payload, Event, Failure],
-        PickleType
+        PickleType,
       ],
       deserializer: Deserializer[ClientMessage[Payload], PickleType],
-      builder: AkkaMessageBuilder[PickleType]
+      builder: AkkaMessageBuilder[PickleType],
   ): Type = {
     import system.dispatcher
 
@@ -62,8 +62,8 @@ object WebsocketServerFlow {
         .to(
           Sink.actorRef[ClientMessage[Payload]](
             connectedClientActor,
-            ConnectedClient.Stop
-          )
+            ConnectedClient.Stop,
+          ),
         )
 
     @annotation.nowarn("cat=deprecation")
@@ -71,7 +71,7 @@ object WebsocketServerFlow {
       Source
         .actorRef[ServerMessage[Payload, Event, Failure]](
           config.bufferSize,
-          config.overflowStrategy
+          config.overflowStrategy,
         )
         .mapMaterializedValue { outActor =>
           connectedClientActor ! ConnectedClient.Connect(outActor)

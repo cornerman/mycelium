@@ -4,7 +4,7 @@ import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future}
 import java.util.{Timer, TimerTask}
 
-case object TimeoutException extends Exception
+case object TimeoutException        extends Exception
 case object DroppedMessageException extends Exception
 
 trait WebsocketMessageSender[PickleType, Sender] {
@@ -15,7 +15,7 @@ trait WebsocketMessageSender[PickleType, Sender] {
     new mutable.ArrayBuffer[WebsocketMessage.Buffered[PickleType]]
 
   def sendOrBuffer(
-      message: WebsocketMessage[PickleType]
+      message: WebsocketMessage[PickleType],
   )(implicit ec: ExecutionContext): Unit = senderOption match {
     case Some(sender) => sendMessage(sender, message)
     case None =>
@@ -36,7 +36,7 @@ trait WebsocketMessageSender[PickleType, Sender] {
 
   private def sendMessage(
       sender: Sender,
-      message: WebsocketMessage[PickleType]
+      message: WebsocketMessage[PickleType],
   )(implicit ec: ExecutionContext): Unit = {
     startMessageTimeout(message)
     doSend(sender, message.pickled).foreach { success =>
@@ -45,14 +45,14 @@ trait WebsocketMessageSender[PickleType, Sender] {
   }
 
   private def signalDroppedMessage(
-      message: WebsocketMessage[PickleType]
+      message: WebsocketMessage[PickleType],
   ): Unit = {
     message.promise tryFailure DroppedMessageException
     ()
   }
 
   private def startMessageTimeout(
-      message: WebsocketMessage[PickleType]
+      message: WebsocketMessage[PickleType],
   )(implicit ctx: ExecutionContext): Unit = {
     val timer = new Timer
     val task = new TimerTask {

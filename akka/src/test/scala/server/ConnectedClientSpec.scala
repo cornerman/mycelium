@@ -13,10 +13,9 @@ import scala.collection.mutable
 import org.scalatest.freespec.AnyFreeSpecLike
 import org.scalatest.matchers.must.Matchers
 
-class TestRequestHandler
-    extends FullRequestHandler[ByteBuffer, String, String, Option[String]] {
+class TestRequestHandler extends FullRequestHandler[ByteBuffer, String, String, Option[String]] {
   val clients = mutable.HashSet.empty[NotifiableClient[String, Option[String]]]
-  val events = mutable.ArrayBuffer.empty[String]
+  val events  = mutable.ArrayBuffer.empty[String]
 
   override val initialState = Future.successful(None)
 
@@ -24,10 +23,10 @@ class TestRequestHandler
       client: NotifiableClient[String, Option[String]],
       state: Future[Option[String]],
       path: List[String],
-      args: ByteBuffer
+      args: ByteBuffer,
   ) = {
     def deserialize[S: Pickler](ts: ByteBuffer) = Unpickle[S].fromBytes(ts)
-    def serialize[S: Pickler](ts: S) = Right(Pickle.intoBytes[S](ts))
+    def serialize[S: Pickler](ts: S)            = Right(Pickle.intoBytes[S](ts))
     def value[S: Pickler](ts: S, events: List[String] = Nil) =
       Future.successful(ReturnValue(serialize(ts), events))
     def valueFut[S: Pickler](ts: Future[S], events: List[String] = Nil) =
@@ -61,7 +60,7 @@ class TestRequestHandler
   override def onEvent(
       client: NotifiableClient[String, Option[String]],
       state: Future[Option[String]],
-      newEvents: List[String]
+      newEvents: List[String],
   ) = {
     events ++= newEvents
     val downstreamEvents = newEvents.map(event => s"${event}-ok")
@@ -70,7 +69,7 @@ class TestRequestHandler
 
   override def onClientConnect(
       client: NotifiableClient[String, Option[String]],
-      state: Future[Option[String]]
+      state: Future[Option[String]],
   ): Unit = {
     client.notify(_ => Future.successful("started" :: Nil))
     clients += client
@@ -79,18 +78,14 @@ class TestRequestHandler
   override def onClientDisconnect(
       client: NotifiableClient[String, Option[String]],
       state: Future[Option[String]],
-      reason: DisconnectReason
+      reason: DisconnectReason,
   ): Unit = {
     clients -= client
     ()
   }
 }
 
-class ConnectedClientSpec
-    extends TestKit(ActorSystem("ConnectedClientSpec"))
-    with ImplicitSender
-    with AnyFreeSpecLike
-    with Matchers {
+class ConnectedClientSpec extends TestKit(ActorSystem("ConnectedClientSpec")) with ImplicitSender with AnyFreeSpecLike with Matchers {
 
   def requestHandler = new TestRequestHandler
   def newActor(handler: TestRequestHandler = requestHandler): ActorRef =
@@ -106,14 +101,14 @@ class ConnectedClientSpec
     actor
   }
 
-  def newActor[T](f: ActorRef => T): T = f(newActor())
+  def newActor[T](f: ActorRef => T): T       = f(newActor())
   def connectedActor[T](f: ActorRef => T): T = f(connectedActor())
   def connectedActor[T](f: (ActorRef, TestRequestHandler) => T): T = {
     val handler = requestHandler
     f(connectedActor(handler), handler)
   }
 
-  val noArg = ByteBuffer.wrap(Array.empty)
+  val noArg                            = ByteBuffer.wrap(Array.empty)
   override def expectNoMessage(): Unit = expectNoMessage(1.seconds)
 
   "unconnected" - {
@@ -175,7 +170,7 @@ class ConnectedClientSpec
         1.seconds,
         CallResponse(1, Right(pickledResponse1)),
         CallResponse(2, Right(pickledResponse2)),
-        CallResponse(3, Right(pickledResponse3))
+        CallResponse(3, Right(pickledResponse3)),
       )
     }
 
@@ -192,7 +187,7 @@ class ConnectedClientSpec
       expectMsgAllOf(
         1.seconds,
         CallResponse(1, Right(pickledResponse1)),
-        CallResponse(2, Right(pickledResponse2))
+        CallResponse(2, Right(pickledResponse2)),
       )
 
       handler.clients.size mustEqual 0
@@ -205,7 +200,7 @@ class ConnectedClientSpec
       expectMsgAllOf(
         1.seconds,
         Notification(List("event")),
-        CallResponse(2, Right(pickledResponse))
+        CallResponse(2, Right(pickledResponse)),
       )
     }
   }

@@ -15,6 +15,6 @@ trait WebsocketConnection[PickleType] {
       location: () => String,
       wsConfig: WebsocketClientConfig,
       pingMessage: PickleType,
-      listener: WebsocketListener[PickleType]
+      listener: WebsocketListener[PickleType],
   ): Cancelable
 }

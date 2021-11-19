@@ -12,7 +12,7 @@ import org.scalatest.matchers.must.Matchers
 
 class MyceliumSpec extends AsyncFreeSpec with Matchers {
   type Payload = String
-  type Event = String
+  type Event   = String
   type Failure = Int
 
   "client" in {
@@ -20,7 +20,7 @@ class MyceliumSpec extends AsyncFreeSpec with Matchers {
       WebsocketClient.withPayload[ByteBuffer, Payload, Event, Failure](
         new JsWebsocketConnection,
         WebsocketClientConfig(),
-        new IncidentHandler[Event]
+        new IncidentHandler[Event],
       )
 
     // client.run("ws://hans")
@@ -29,13 +29,13 @@ class MyceliumSpec extends AsyncFreeSpec with Matchers {
       "foo" :: "bar" :: Nil,
       "harals",
       SendType.NowOrFail,
-      30.seconds
+      30.seconds,
     )
     val res2 = client.send(
       "foo" :: "bar" :: Nil,
       "harals",
       SendType.WhenConnected,
-      30.seconds
+      30.seconds,
     )
 
     res.failed.map(_ mustEqual DroppedMessageException)

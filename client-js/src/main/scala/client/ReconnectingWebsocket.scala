@@ -17,17 +17,18 @@ object WebSocketConstructor {
 }
 
 trait ReconnectingWebsocketOptions extends js.Object {
-  val maxReconnectionDelay: js.UndefOr[Int] = js.undefined
-  val minReconnectionDelay: js.UndefOr[Int] = js.undefined
+  val maxReconnectionDelay: js.UndefOr[Int]           = js.undefined
+  val minReconnectionDelay: js.UndefOr[Int]           = js.undefined
   val reconnectionDelayGrowFactor: js.UndefOr[Double] = js.undefined
-  val connectionTimeout: js.UndefOr[Int] = js.undefined
-  val maxRetries: js.UndefOr[Int] = js.undefined
-  val debug: js.UndefOr[Boolean] = js.undefined
+  val connectionTimeout: js.UndefOr[Int]              = js.undefined
+  val maxRetries: js.UndefOr[Int]                     = js.undefined
+  val debug: js.UndefOr[Boolean]                      = js.undefined
 }
 
 @js.native
 @JSImport("reconnecting-websocket", JSImport.Default)
 class ReconnectingWebSocket(
-  url: String | js.Function0[String],
-  protocols: String | Array[String] = null,
-  options: ReconnectingWebsocketOptions = null) extends WebSocket
+    url: String | js.Function0[String],
+    protocols: String | Array[String] = null,
+    options: ReconnectingWebsocketOptions = null,
+) extends WebSocket
