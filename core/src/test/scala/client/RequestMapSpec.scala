@@ -16,7 +16,7 @@ class RequestMapSpec extends AsyncFreeSpec with Matchers {
     }
 
     "get by id" in {
-      val requests = new RequestMap[Int]
+      val requests      = new RequestMap[Int]
       val (id, promise) = requests.open()
       requests.get(id) mustEqual Option(promise)
     }
@@ -27,7 +27,7 @@ class RequestMapSpec extends AsyncFreeSpec with Matchers {
     }
 
     "usable promise" in {
-      val requests = new RequestMap[Int]
+      val requests     = new RequestMap[Int]
       val (_, promise) = requests.open()
       promise success 1
       promise.future.map(_ mustEqual 1)

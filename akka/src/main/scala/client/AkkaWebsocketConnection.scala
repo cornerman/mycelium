@@ -6,12 +6,7 @@ import mycelium.core.client._
 
 import akka.actor._
 import akka.http.scaladsl.Http
-import akka.stream.{
-  Materializer,
-  OverflowStrategy,
-  QueueOfferResult,
-  KillSwitches
-}
+import akka.stream.{Materializer, OverflowStrategy, QueueOfferResult, KillSwitches}
 import akka.stream.scaladsl._
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.ws._
@@ -21,11 +16,11 @@ import scala.util.{Success, Failure}
 
 class AkkaWebsocketConnection[PickleType](
     bufferSize: Int,
-    overflowStrategy: OverflowStrategy
+    overflowStrategy: OverflowStrategy,
 )(implicit
     system: ActorSystem,
     materializer: Materializer,
-    builder: AkkaMessageBuilder[PickleType]
+    builder: AkkaMessageBuilder[PickleType],
 ) extends WebsocketConnection[PickleType] {
   import system.dispatcher
 
@@ -49,7 +44,7 @@ class AkkaWebsocketConnection[PickleType](
       location: () => String,
       wsConfig: WebsocketClientConfig,
       pingMessage: PickleType,
-      listener: WebsocketListener[PickleType]
+      listener: WebsocketListener[PickleType],
   ) = if (!isStarted) {
     isStarted = true
 
@@ -62,12 +57,12 @@ class AkkaWebsocketConnection[PickleType](
               case Some(value) => listener.onMessage(value)
               case None =>
                 scribe.warn(
-                  s"Ignoring websocket message. Builder does not support message ($message)"
+                  s"Ignoring websocket message. Builder does not support message ($message)",
                 )
             }
           case Failure(t) =>
             scribe.warn(
-              s"Ignoring websocket message. Builder failed to unpack message ($message): $t"
+              s"Ignoring websocket message. Builder failed to unpack message ($message): $t",
             )
         }
     }
@@ -76,22 +71,21 @@ class AkkaWebsocketConnection[PickleType](
     val wsFlow = RestartFlow.withBackoff(
       minBackoff = wsConfig.minReconnectDelay,
       maxBackoff = wsConfig.maxReconnectDelay,
-      randomFactor = wsConfig.delayReconnectFactor - 1
+      randomFactor = wsConfig.delayReconnectFactor - 1,
     ) { () =>
       Http()
         .webSocketClientFlow(
           WebSocketRequest(location()),
           settings = ClientConnectionSettings(system).withConnectingTimeout(
-            wsConfig.connectingTimeout
-          )
+            wsConfig.connectingTimeout,
+          ),
         )
         .mapMaterializedValue { upgrade =>
           upgrade.foreach { upgrade =>
             if (upgrade.response.status == StatusCodes.SwitchingProtocols) {
-              outgoingMaterialized.foreach {
-                _ => // TODO: need to wait for materialized queue, as actor depends on it...
-                  listener.onConnect()
-                  sendActor ! SendActor.Connected
+              outgoingMaterialized.foreach { _ => // TODO: need to wait for materialized queue, as actor depends on it...
+                listener.onConnect()
+                sendActor ! SendActor.Connected
               }
             }
           }
@@ -127,7 +121,7 @@ class AkkaWebsocketConnection[PickleType](
 
 //TODO future source is dangerous as it might complete before we receive a Connected message
 private[client] class SendActor[PickleType](
-    queue: Future[SourceQueue[Message]]
+    queue: Future[SourceQueue[Message]],
 )(implicit ec: ExecutionContext, builder: AkkaMessageBuilder[PickleType])
     extends Actor {
   import SendActor._
@@ -139,7 +133,7 @@ private[client] class SendActor[PickleType](
         if (isConnected) queue.value.flatMap(_.toOption) else None
       override def doSend(
           queue: SourceQueue[Message],
-          rawMessage: PickleType
+          rawMessage: PickleType,
       ) = {
         val message = builder.pack(rawMessage)
         queue.offer(message).map {
@@ -157,7 +151,7 @@ private[client] class SendActor[PickleType](
       messageSender.trySendBuffer()
     case Closed =>
       isConnected = false
-    case message: WebsocketMessage[PickleType@unchecked] =>
+    case message: WebsocketMessage[PickleType @unchecked] =>
       messageSender.sendOrBuffer(message)
   }
 }

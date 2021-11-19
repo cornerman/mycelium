@@ -5,9 +5,9 @@ import java.util.{Timer, TimerTask}
 
 private[mycelium] class KeepAliveTracker(
     pingInterval: FiniteDuration,
-    sendPing: () => Unit
+    sendPing: () => Unit,
 ) {
-  private val timer = new Timer
+  private val timer       = new Timer
   private var currentTask = Option.empty[TimerTask]
   def acknowledgeTraffic(): Unit = {
     currentTask.foreach(_.cancel())
