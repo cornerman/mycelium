@@ -7,7 +7,7 @@ object Deps {
 
   val scalaTest = dep("org.scalatest" %%% "scalatest" % "3.2.10")
   val scalajs = new {
-    val dom = dep("org.scala-js" %%% "scalajs-dom" % "2.0.0")
+    val dom = dep("org.scala-js" %%% "scalajs-dom" % "2.1.0")
   }
   val akka = new {
     private val version = "2.6.16"
