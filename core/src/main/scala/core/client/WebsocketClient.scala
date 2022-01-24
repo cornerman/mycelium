@@ -70,8 +70,8 @@ class WebsocketClientWithPayload[PickleType, Payload, Event, Failure](
                   s"Ignoring incoming response ($seqId), unknown sequence id.",
                 )
             }
-          case Right(Notification(events)) =>
-            handler.onEvents(events)
+          case Right(Notification(event)) =>
+            handler.onEvent(event)
           case Right(Pong) =>
           // do nothing
           case Left(error) =>

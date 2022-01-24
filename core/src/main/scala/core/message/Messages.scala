@@ -12,7 +12,7 @@ case object Pong extends ServerMessage[Nothing, Nothing, Nothing]
 case class CallResponse[Payload, Failure](seqId: SequenceId, result: Either[Failure, Payload]) extends ServerMessage[Payload, Nothing, Failure]
 // case class CallResponseSuccess[Payload](seqId: SequenceId, result: Payload) extends ServerMessage[Payload, Nothing, Nothing]
 // case class CallResponseFailure[Failure](seqId: SequenceId, result: Failure) extends ServerMessage[Nothing, Nothing, Failure]
-case class Notification[Event](event: List[Event]) extends ServerMessage[Nothing, Event, Nothing]
+case class Notification[Event](event: Event) extends ServerMessage[Nothing, Event, Nothing]
 
 // sealed trait ServerMessage[+Payload, +ErrorType]
 // sealed trait ServerResponse { def seqId: SequenceId }
