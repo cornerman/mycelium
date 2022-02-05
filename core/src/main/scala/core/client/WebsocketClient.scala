@@ -28,6 +28,8 @@ class WebsocketClientWithPayload[PickleType, Payload, Event, Failure](
     ],
 ) {
 
+  def rawSend(payload: PickleType): Unit = ws.rawSend(payload)
+
   def send(path: List[String], payload: Payload, sendType: SendType, requestTimeout: FiniteDuration)(implicit
       ec: ExecutionContext,
   ): Future[Either[Failure, Payload]] = {

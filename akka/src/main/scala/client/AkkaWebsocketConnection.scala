@@ -37,6 +37,8 @@ class AkkaWebsocketConnection[PickleType](
   private val sendActor =
     system.actorOf(Props(new SendActor(outgoingMaterialized)))
 
+  def rawSend(msg: PickleType): Unit = sendActor ! msg
+
   def send(msg: WebsocketMessage[PickleType]): Unit = sendActor ! msg
 
   //TODO return result signaling closed
@@ -153,6 +155,8 @@ private[client] class SendActor[PickleType](
       isConnected = false
     case message: WebsocketMessage[PickleType @unchecked] =>
       messageSender.sendOrBuffer(message)
+    case rawMessage: PickleType @unchecked =>
+      messageSender.senderOption.foreach(messageSender.doSend(_, rawMessage))
   }
 }
 private[client] object SendActor {

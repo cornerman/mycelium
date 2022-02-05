@@ -9,6 +9,7 @@ trait WebsocketListener[PickleType] {
 }
 
 trait WebsocketConnection[PickleType] {
+  def rawSend(value: PickleType): Unit
   def send(value: WebsocketMessage[PickleType]): Unit
 
   def run(
