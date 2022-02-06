@@ -35,7 +35,7 @@ class AkkaWebsocketConnection[PickleType](
   }
 
   private val sendActor =
-    system.actorOf(Props(new SendActor(outgoingMaterialized, listener.onConnect)))
+    system.actorOf(Props(new SendActor(outgoingMaterialized)))
 
   def rawSend(msg: PickleType): Unit = sendActor ! msg
 
@@ -87,6 +87,8 @@ class AkkaWebsocketConnection[PickleType](
             if (upgrade.response.status == StatusCodes.SwitchingProtocols) {
               outgoingMaterialized.foreach { _ => // TODO: need to wait for materialized queue, as actor depends on it...
                 sendActor ! SendActor.Connected
+                listener.onConnect()
+                sendActor ! SendActor.SendBuffer
               }
             }
           }
@@ -123,7 +125,6 @@ class AkkaWebsocketConnection[PickleType](
 //TODO future source is dangerous as it might complete before we receive a Connected message
 private[client] class SendActor[PickleType](
     queue: Future[SourceQueue[Message]],
-    onConnect: () => Unit,
 )(implicit ec: ExecutionContext, builder: AkkaMessageBuilder[PickleType])
     extends Actor {
   import SendActor._
@@ -150,7 +151,7 @@ private[client] class SendActor[PickleType](
   def receive = {
     case Connected =>
       isConnected = true
-      onConnect()
+    case SendBuffer =>
       messageSender.trySendBuffer()
     case Closed =>
       isConnected = false
@@ -162,5 +163,6 @@ private[client] class SendActor[PickleType](
 }
 private[client] object SendActor {
   case object Connected
+  case object SendBuffer
   case object Closed
 }
