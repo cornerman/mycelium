@@ -75,8 +75,8 @@ class JsWebsocketConnection[PickleType](implicit
     }
 
     websocket.onopen = { (_: Event) =>
-      listener.onConnect()
       wsOpt = Option(websocket)
+      listener.onConnect()
       messageSender.trySendBuffer()
     }
 
