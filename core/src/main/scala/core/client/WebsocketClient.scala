@@ -7,6 +7,8 @@ import chameleon._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
 
+case object ExceptionInBackendResponse extends Exception
+
 case class WebsocketClientConfig(
     minReconnectDelay: FiniteDuration = 1.seconds,
     maxReconnectDelay: FiniteDuration = 60.seconds,
@@ -63,14 +65,17 @@ class WebsocketClientWithPayload[PickleType, Payload, Event, Failure](
             requestMap.get(seqId) match {
               case Some(promise) =>
                 val completed = promise trySuccess result
-                if (!completed)
-                  scribe.warn(
-                    s"Ignoring incoming response ($seqId), it already timed out.",
-                  )
+                if (!completed) scribe.warn(s"Ignoring incoming response ($seqId), it already timed out.")
               case None =>
-                scribe.warn(
-                  s"Ignoring incoming response ($seqId), unknown sequence id.",
-                )
+                scribe.warn(s"Ignoring incoming response ($seqId), unknown sequence id.")
+            }
+          case Right(CallResponseException(seqId)) =>
+            requestMap.get(seqId) match {
+              case Some(promise) =>
+                val completed = promise tryFailure ExceptionInBackendResponse
+                if (!completed) scribe.warn(s"Ignoring incoming exception response ($seqId), it already timed out.")
+              case None =>
+                scribe.warn(s"Ignoring incoming response ($seqId), unknown sequence id.")
             }
           case Right(Notification(event)) =>
             handler.onEvent(event)

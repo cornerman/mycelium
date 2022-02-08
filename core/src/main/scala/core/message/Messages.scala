@@ -7,12 +7,10 @@ case object Ping                                                                
 case class CallRequest[Payload](seqId: SequenceId, path: List[String], payload: Payload) extends ClientMessage[Payload]
 
 sealed trait ServerMessage[+Payload, +Event, +Failure]
-case object Pong extends ServerMessage[Nothing, Nothing, Nothing]
-// case class CallResponse[Payload, Failure](seqId: SequenceId, result: Either[Failure, Payload]) extends ServerMessage[Payload, Nothing, Failure]
+case object Pong                                                                               extends ServerMessage[Nothing, Nothing, Nothing]
+case class Notification[Event](event: Event)                                                   extends ServerMessage[Nothing, Event, Nothing]
 case class CallResponse[Payload, Failure](seqId: SequenceId, result: Either[Failure, Payload]) extends ServerMessage[Payload, Nothing, Failure]
-// case class CallResponseSuccess[Payload](seqId: SequenceId, result: Payload) extends ServerMessage[Payload, Nothing, Nothing]
-// case class CallResponseFailure[Failure](seqId: SequenceId, result: Failure) extends ServerMessage[Nothing, Nothing, Failure]
-case class Notification[Event](event: Event) extends ServerMessage[Nothing, Event, Nothing]
+case class CallResponseException(seqId: SequenceId)                                            extends ServerMessage[Nothing, Nothing, Nothing]
 
 // sealed trait ServerMessage[+Payload, +ErrorType]
 // sealed trait ServerResponse { def seqId: SequenceId }
