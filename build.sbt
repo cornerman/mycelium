@@ -28,6 +28,7 @@ lazy val commonSettings = Seq(
     "-Wunused:explicits",
     "-Ywarn-unused:params",
     "-Wunused:params",
+    "-Xfatal-warnings",
   ),
   libraryDependencies ++=
     Deps.boopickle.value   % Test ::
