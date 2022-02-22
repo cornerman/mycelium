@@ -48,7 +48,11 @@ private[mycelium] class ConnectedClient[Payload, Event, Failure, State](
         val response = onRequest(client, state, path, args)
         response.value.onComplete {
           case util.Success(value) =>
-            outgoing ! CallResponse(seqId, value.result)
+            val response = value.result match {
+              case Right(result) => CallResponse(seqId, result)
+              case Left(error)   => CallResponseFailure(seqId, error)
+            }
+            outgoing ! response
             sendEvents(value.events)
           case util.Failure(exception) =>
             scribe.warn("Exception in backend request handler", exception)
