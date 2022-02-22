@@ -8,8 +8,8 @@ case object TimeoutException        extends Exception
 case object DroppedMessageException extends Exception
 
 trait WebsocketMessageSender[PickleType, Sender] {
-  protected def senderOption: Option[Sender]
-  protected def doSend(sender: Sender, message: PickleType): Future[Boolean]
+  def senderOption: Option[Sender]
+  def doSend(sender: Sender, message: PickleType): Future[Boolean]
 
   private val queue =
     new mutable.ArrayBuffer[WebsocketMessage.Buffered[PickleType]]

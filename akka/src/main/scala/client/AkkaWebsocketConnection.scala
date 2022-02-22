@@ -37,6 +37,8 @@ class AkkaWebsocketConnection[PickleType](
   private val sendActor =
     system.actorOf(Props(new SendActor(outgoingMaterialized)))
 
+  def rawSend(msg: PickleType): Unit = sendActor ! msg
+
   def send(msg: WebsocketMessage[PickleType]): Unit = sendActor ! msg
 
   //TODO return result signaling closed
@@ -84,8 +86,9 @@ class AkkaWebsocketConnection[PickleType](
           upgrade.foreach { upgrade =>
             if (upgrade.response.status == StatusCodes.SwitchingProtocols) {
               outgoingMaterialized.foreach { _ => // TODO: need to wait for materialized queue, as actor depends on it...
-                listener.onConnect()
                 sendActor ! SendActor.Connected
+                listener.onConnect()
+                sendActor ! SendActor.SendBuffer
               }
             }
           }
@@ -148,14 +151,18 @@ private[client] class SendActor[PickleType](
   def receive = {
     case Connected =>
       isConnected = true
+    case SendBuffer =>
       messageSender.trySendBuffer()
     case Closed =>
       isConnected = false
     case message: WebsocketMessage[PickleType @unchecked] =>
       messageSender.sendOrBuffer(message)
+    case rawMessage: PickleType @unchecked =>
+      messageSender.senderOption.foreach(messageSender.doSend(_, rawMessage))
   }
 }
 private[client] object SendActor {
   case object Connected
+  case object SendBuffer
   case object Closed
 }

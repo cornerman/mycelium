@@ -40,6 +40,8 @@ class JsWebsocketConnection[PickleType](implicit
       }
     }
 
+  def rawSend(rawMessage: PickleType): Unit = messageSender.senderOption.foreach(messageSender.doSend(_, rawMessage))
+
   def send(value: WebsocketMessage[PickleType]): Unit =
     messageSender.sendOrBuffer(value)
 
@@ -73,8 +75,8 @@ class JsWebsocketConnection[PickleType](implicit
     }
 
     websocket.onopen = { (_: Event) =>
-      listener.onConnect()
       wsOpt = Option(websocket)
+      listener.onConnect()
       messageSender.trySendBuffer()
     }
 

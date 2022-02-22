@@ -4,8 +4,10 @@ import mycelium.core.Cancelable
 import mycelium.core.message._
 import chameleon._
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.concurrent.duration._
+
+case object ExceptionInBackendResponse extends Exception
 
 case class WebsocketClientConfig(
     minReconnectDelay: FiniteDuration = 1.seconds,
@@ -27,6 +29,8 @@ class WebsocketClientWithPayload[PickleType, Payload, Event, Failure](
       PickleType,
     ],
 ) {
+
+  def rawSend(payload: PickleType): Unit = ws.rawSend(payload)
 
   def send(path: List[String], payload: Payload, sendType: SendType, requestTimeout: FiniteDuration)(implicit
       ec: ExecutionContext,
@@ -58,20 +62,13 @@ class WebsocketClientWithPayload[PickleType, Payload, Event, Failure](
       def onMessage(msg: PickleType): Unit = {
         deserializer.deserialize(msg) match {
           case Right(CallResponse(seqId, result)) =>
-            requestMap.get(seqId) match {
-              case Some(promise) =>
-                val completed = promise trySuccess result
-                if (!completed)
-                  scribe.warn(
-                    s"Ignoring incoming response ($seqId), it already timed out.",
-                  )
-              case None =>
-                scribe.warn(
-                  s"Ignoring incoming response ($seqId), unknown sequence id.",
-                )
-            }
-          case Right(Notification(events)) =>
-            handler.onEvents(events)
+            callResponse(seqId)(_ trySuccess Right(result))
+          case Right(CallResponseFailure(seqId, failure)) =>
+            callResponse(seqId)(_ trySuccess Left(failure))
+          case Right(CallResponseException(seqId)) =>
+            callResponse(seqId)(_ tryFailure ExceptionInBackendResponse)
+          case Right(Notification(event)) =>
+            handler.onEvent(event)
           case Right(Pong) =>
           // do nothing
           case Left(error) =>
@@ -80,6 +77,15 @@ class WebsocketClientWithPayload[PickleType, Payload, Event, Failure](
       }
     },
   )
+
+  private def callResponse(seqId: SequenceId)(body: Promise[Either[Failure, Payload]] => Boolean) =
+    requestMap.get(seqId) match {
+      case Some(promise) =>
+        val completed = body(promise)
+        if (!completed) scribe.warn(s"Ignoring incoming response ($seqId), it already timed out.")
+      case None =>
+        scribe.warn(s"Ignoring incoming response ($seqId), unknown sequence id.")
+    }
 }
 
 object WebsocketClient {
