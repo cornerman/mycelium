@@ -5,13 +5,13 @@ import org.portablescala.sbtplatformdeps.PlatformDepsPlugin.autoImport._
 object Deps {
   import Def.{setting => dep}
 
-  val scalaTest = dep("org.scalatest" %%% "scalatest" % "3.2.10")
+  val scalaTest = dep("org.scalatest" %%% "scalatest" % "3.2.11")
   val scalajs = new {
-    val dom = dep("org.scala-js" %%% "scalajs-dom" % "2.0.0")
+    val dom = dep("org.scala-js" %%% "scalajs-dom" % "2.1.0")
   }
   val akka = new {
     private val version = "2.6.16"
-    val http            = dep("com.typesafe.akka" %% "akka-http" % "10.2.7")
+    val http            = dep("com.typesafe.akka" %% "akka-http" % "10.2.8")
     val stream          = dep("com.typesafe.akka" %% "akka-stream" % version)
     val actor           = dep("com.typesafe.akka" %% "akka-actor" % version)
     val testkit         = dep("com.typesafe.akka" %% "akka-testkit" % version)

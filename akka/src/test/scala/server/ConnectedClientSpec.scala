@@ -142,12 +142,12 @@ class ConnectedClientSpec extends TestKit(ActorSystem("ConnectedClientSpec")) wi
   "call request" - {
     "invalid path" in connectedActor { actor =>
       actor ! CallRequest(2, List("invalid", "path"), noArg)
-      expectMsg(CallResponse(2, Left("path not found")))
+      expectMsg(CallResponseFailure(2, "path not found"))
     }
 
     "exception in api" in connectedActor { actor =>
       actor ! CallRequest(2, List("broken"), noArg)
-      expectMsg(CallResponse(2, Left("an error")))
+      expectMsg(CallResponseFailure(2, "an error"))
     }
 
     "call api" in connectedActor { actor =>
@@ -155,7 +155,7 @@ class ConnectedClientSpec extends TestKit(ActorSystem("ConnectedClientSpec")) wi
       actor ! CallRequest(2, List("api"), arg)
 
       val pickledResponse = Pickle.intoBytes[String]("snah")
-      expectMsg(CallResponse(2, Right(pickledResponse)))
+      expectMsg(CallResponse(2, pickledResponse))
     }
 
     "switch state" in connectedActor { actor =>
@@ -168,9 +168,9 @@ class ConnectedClientSpec extends TestKit(ActorSystem("ConnectedClientSpec")) wi
       val pickledResponse3 = Pickle.intoBytes[Option[String]](Option("anon"))
       expectMsgAllOf(
         1.seconds,
-        CallResponse(1, Right(pickledResponse1)),
-        CallResponse(2, Right(pickledResponse2)),
-        CallResponse(3, Right(pickledResponse3)),
+        CallResponse(1, pickledResponse1),
+        CallResponse(2, pickledResponse2),
+        CallResponse(3, pickledResponse3),
       )
     }
 
@@ -186,8 +186,8 @@ class ConnectedClientSpec extends TestKit(ActorSystem("ConnectedClientSpec")) wi
       val pickledResponse2 = Pickle.intoBytes[Boolean](true)
       expectMsgAllOf(
         1.seconds,
-        CallResponse(1, Right(pickledResponse1)),
-        CallResponse(2, Right(pickledResponse2)),
+        CallResponse(1, pickledResponse1),
+        CallResponse(2, pickledResponse2),
       )
 
       handler.clients.size mustEqual 0
@@ -200,7 +200,7 @@ class ConnectedClientSpec extends TestKit(ActorSystem("ConnectedClientSpec")) wi
       expectMsgAllOf(
         1.seconds,
         Notification(List("event")),
-        CallResponse(2, Right(pickledResponse)),
+        CallResponse(2, pickledResponse),
       )
     }
   }
