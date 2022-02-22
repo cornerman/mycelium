@@ -46,9 +46,17 @@ private[mycelium] class ConnectedClient[Payload, Event, Failure, State](
 
       case CallRequest(seqId, path, args: Payload @unchecked) =>
         val response = onRequest(client, state, path, args)
-        response.value.foreach { value =>
-          outgoing ! CallResponse(seqId, value.result)
-          sendEvents(value.events)
+        response.value.onComplete {
+          case util.Success(value) =>
+            val response = value.result match {
+              case Right(result) => CallResponse(seqId, result)
+              case Left(error)   => CallResponseFailure(seqId, error)
+            }
+            outgoing ! response
+            sendEvents(value.events)
+          case util.Failure(exception) =>
+            scribe.warn("Exception in backend request handler", exception)
+            outgoing ! CallResponseException(seqId)
         }
         context.become(safeWithState(response.state))
 

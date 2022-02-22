@@ -81,7 +81,7 @@ class MyceliumSpec extends AsyncFreeSpec with Matchers with BeforeAndAfterAll {
       builder.unpack(msg).map(_.map(s => deserializer.deserialize(s).toOption.get))
     }
 
-    val expected = CallResponse(1, Right(payloadValue))
+    val expected = CallResponse(1, payloadValue)
     response.map(_ mustEqual Some(expected))
   }
 }
