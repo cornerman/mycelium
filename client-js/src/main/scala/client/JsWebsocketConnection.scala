@@ -7,6 +7,8 @@ import mycelium.core.client._
 
 import org.scalajs.dom._
 import scala.scalajs.js
+import scala.scalajs.js.JSConverters._
+import scala.scalajs.js.|
 import scala.scalajs.js.typedarray.ArrayBuffer
 import scala.util.{Try, Success, Failure}
 import scala.concurrent.{ExecutionContext, Future}
@@ -46,7 +48,7 @@ class JsWebsocketConnection[PickleType](implicit
     messageSender.sendOrBuffer(value)
 
   def run(
-      location: () => String,
+      location: () => Future[String],
       wsConfig: WebsocketClientConfig,
       pingMessage: PickleType,
       listener: WebsocketListener[PickleType],
@@ -56,7 +58,14 @@ class JsWebsocketConnection[PickleType](implicit
     this.keepAliveTracker = Some(keepAliveTracker) //TODO should not set this here
 
     val websocket = new ReconnectingWebSocket(
-      location: js.Function0[String],
+      { () =>
+        val result = location()
+        result.value match {
+          case Some(Success(value)) => value
+          case Some(Failure(error)) => throw new Exception(s"Failed to get websocket url: $error")
+          case None => result.toJSPromise
+        }
+      }: js.Function0[String | js.Promise[String]],
       options = new ReconnectingWebsocketOptions {
         override val maxReconnectionDelay: js.UndefOr[Int] =
           wsConfig.maxReconnectDelay.toMillis.toInt

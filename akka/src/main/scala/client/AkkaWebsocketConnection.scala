@@ -43,7 +43,7 @@ class AkkaWebsocketConnection[PickleType](
 
   //TODO return result signaling closed
   def run(
-      location: () => String,
+      location: () => Future[String],
       wsConfig: WebsocketClientConfig,
       pingMessage: PickleType,
       listener: WebsocketListener[PickleType],
@@ -75,15 +75,16 @@ class AkkaWebsocketConnection[PickleType](
       maxBackoff = wsConfig.maxReconnectDelay,
       randomFactor = wsConfig.delayReconnectFactor - 1,
     ) { () =>
-      Http()
+      Flow.futureFlow(location().map { location => Http()
         .webSocketClientFlow(
-          WebSocketRequest(location()),
+          WebSocketRequest(location),
           settings = ClientConnectionSettings(system).withConnectingTimeout(
             wsConfig.connectingTimeout,
           ),
         )
+      })
         .mapMaterializedValue { upgrade =>
-          upgrade.foreach { upgrade =>
+          upgrade.flatten.foreach { upgrade =>
             if (upgrade.response.status == StatusCodes.SwitchingProtocols) {
               outgoingMaterialized.foreach { _ => // TODO: need to wait for materialized queue, as actor depends on it...
                 sendActor ! SendActor.Connected

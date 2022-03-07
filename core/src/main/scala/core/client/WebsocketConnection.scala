@@ -1,6 +1,7 @@
 package mycelium.core.client
 
 import mycelium.core.Cancelable
+import scala.concurrent.Future
 
 trait WebsocketListener[PickleType] {
   def onConnect(): Unit
@@ -13,7 +14,7 @@ trait WebsocketConnection[PickleType] {
   def send(value: WebsocketMessage[PickleType]): Unit
 
   def run(
-      location: () => String,
+      location: () => Future[String],
       wsConfig: WebsocketClientConfig,
       pingMessage: PickleType,
       listener: WebsocketListener[PickleType],

@@ -52,7 +52,9 @@ class WebsocketClientWithPayload[PickleType, Payload, Event, Failure](
 
   def run(location: String): Cancelable = run(() => location)
 
-  def run(location: () => String): Cancelable = ws.run(
+  def run(location: () => String): Cancelable = runFromFuture(() => Future.successful(location()))
+
+  def runFromFuture(location: () => Future[String]): Cancelable = ws.run(
     location,
     wsConfig,
     serializer.serialize(Ping),
