@@ -17,7 +17,7 @@ trait JsMessageBuilder[PickleType] {
 object JsMessageBuilder {
   type Message = String | ArrayBuffer | Blob
 
-  implicit val JsMessageBuilderString = new JsMessageBuilder[String] {
+  implicit val JsMessageBuilderString: JsMessageBuilder[String] = new JsMessageBuilder[String] {
     def pack(msg: String): Message = msg
     def unpack(m: Message): Future[Option[String]] = (m: Any) match {
       case s: String => Future.successful(Some(s))
@@ -25,7 +25,7 @@ object JsMessageBuilder {
       case _         => Future.successful(None)
     }
   }
-  implicit val JsMessageBuilderByteBuffer = new JsMessageBuilder[ByteBuffer] {
+  implicit val JsMessageBuilderByteBuffer: JsMessageBuilder[ByteBuffer] = new JsMessageBuilder[ByteBuffer] {
     def pack(msg: ByteBuffer): Message = msg.arrayBuffer().slice(msg.position, msg.limit)
     def unpack(m: Message): Future[Option[ByteBuffer]] = (m: Any) match {
       case a: ArrayBuffer => Future.successful(Option(TypedArrayBuffer.wrap(a)))

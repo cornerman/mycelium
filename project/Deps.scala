@@ -9,12 +9,12 @@ object Deps {
   val scalajs = new {
     val dom = dep("org.scala-js" %%% "scalajs-dom" % "2.8.0")
   }
-  val akka = new {
-    private val version = "2.6.16"
-    val http            = dep("com.typesafe.akka" %% "akka-http" % "10.2.10")
-    val stream          = dep("com.typesafe.akka" %% "akka-stream" % version)
-    val actor           = dep("com.typesafe.akka" %% "akka-actor" % version)
-    val testkit         = dep("com.typesafe.akka" %% "akka-testkit" % version)
+  val pekko = new {
+    private val version = "1.0.1"
+    val http            = dep("org.apache.pekko" %% "pekko-http" % "1.0.0")
+    val stream          = dep("org.apache.pekko" %% "pekko-stream" % version)
+    val actor           = dep("org.apache.pekko" %% "pekko-actor" % version)
+    val testkit         = dep("org.apache.pekko" %% "pekko-testkit" % version)
   }
   val chameleon = dep("com.github.cornerman" %%% "chameleon" % "0.3.7")
   val boopickle = dep("io.suzaku" %%% "boopickle" % "1.4.0")
