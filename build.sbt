@@ -1,8 +1,8 @@
 inThisBuild(
   Seq(
     organization := "com.github.cornerman",
-    scalaVersion := "2.12.17",
-    crossScalaVersions := Seq("2.12.17", "2.13.10"),
+    scalaVersion := "2.12.18",
+    crossScalaVersions := Seq("2.12.18", "2.13.12", "3.3.1"),
     licenses := Seq("MIT License" -> url("https://opensource.org/licenses/MIT")),
     homepage := Some(url("https://github.com/cornerman/mycelium")),
     scmInfo := Some(
@@ -37,13 +37,6 @@ lazy val commonSettings = Seq(
 )
 
 lazy val jsSettings = Seq(
-  scalacOptions += {
-    val githubRepo    = "cornerman/mycelium"
-    val local         = baseDirectory.value.toURI
-    val subProjectDir = baseDirectory.value.getName
-    val remote        = s"https://raw.githubusercontent.com/${githubRepo}/${git.gitHeadCommit.value.get}"
-    s"-P:scalajs:mapSourceURI:$local->$remote/${subProjectDir}/"
-  },
 )
 
 lazy val core = crossProject(JVMPlatform, JSPlatform)
@@ -78,17 +71,17 @@ lazy val clientJS = project
         Nil,
   )
 
-lazy val akka = project
-  .in(file("akka"))
+lazy val pekko = project
+  .in(file("pekko"))
   .dependsOn(core.jvm)
   .settings(commonSettings)
   .settings(
-    name := "mycelium-akka",
+    name := "mycelium-pekko",
     libraryDependencies ++=
-      Deps.akka.http.value ::
-        Deps.akka.actor.value ::
-        Deps.akka.stream.value ::
-        Deps.akka.testkit.value % Test ::
+      Deps.pekko.http.value ::
+        Deps.pekko.actor.value ::
+        Deps.pekko.stream.value ::
+        Deps.pekko.testkit.value % Test ::
         Nil,
   )
 
@@ -98,4 +91,4 @@ lazy val root = project
     name := "mycelium-root",
     skip in publish := true,
   )
-  .aggregate(core.js, core.jvm, clientJS, akka)
+  .aggregate(core.js, core.jvm, clientJS, pekko)
