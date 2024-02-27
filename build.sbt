@@ -2,7 +2,7 @@ inThisBuild(
   Seq(
     organization := "com.github.cornerman",
     scalaVersion := "2.12.18",
-    crossScalaVersions := Seq("2.12.18", "2.13.12", "3.3.1"),
+    crossScalaVersions := Seq("2.12.18", "2.13.13", "3.3.1"),
     licenses := Seq("MIT License" -> url("https://opensource.org/licenses/MIT")),
     homepage := Some(url("https://github.com/cornerman/mycelium")),
     scmInfo := Some(
