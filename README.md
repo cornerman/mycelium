@@ -7,7 +7,7 @@ Requests, Responses and Events over Websockets in scala
 
 Get latest release:
 ```scala
-libraryDependencies += "com.github.cornerman" %% "mycelium-core" % "0.3.0" // core data types
-libraryDependencies += "com.github.cornerman" %% "mycelium-akka" % "0.3.0" // akka-based jvm client and server implementation
-libraryDependencies += "com.github.cornerman" %% "mycelium-client-js" % "0.3.0" // scalajs client implementation
+libraryDependencies += "com.github.cornerman" %% "mycelium-core" % "0.4.1" // core data types
+libraryDependencies += "com.github.cornerman" %% "mycelium-pekko" % "0.4.1" // pekko-based jvm client and server implementation
+libraryDependencies += "com.github.cornerman" %% "mycelium-client-js" % "0.4.1" // scalajs client implementation
 ```
