@@ -20,7 +20,7 @@ import org.scalatest.freespec.AsyncFreeSpec
 import org.scalatest.matchers.must.Matchers
 
 class MyceliumRealSpec extends AsyncFreeSpec with Matchers with BeforeAndAfterAll {
-  implicit val system = ActorSystem()
+  implicit val system: ActorSystem = ActorSystem()
   val port            = 9899
 
   override def afterAll(): Unit = {
