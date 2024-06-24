@@ -5,7 +5,7 @@ import org.portablescala.sbtplatformdeps.PlatformDepsPlugin.autoImport._
 object Deps {
   import Def.{setting => dep}
 
-  val scalaTest = dep("org.scalatest" %%% "scalatest" % "3.2.18")
+  val scalaTest = dep("org.scalatest" %%% "scalatest" % "3.2.19")
   val scalajs = new {
     val dom = dep("org.scala-js" %%% "scalajs-dom" % "2.8.0")
   }
