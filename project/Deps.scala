@@ -11,7 +11,7 @@ object Deps {
   }
   val pekko = new {
     private val version = "1.0.1"
-    val http            = dep("org.apache.pekko" %% "pekko-http" % "1.0.1")
+    val http            = dep("org.apache.pekko" %% "pekko-http" % "1.1.0")
     val stream          = dep("org.apache.pekko" %% "pekko-stream" % version)
     val actor           = dep("org.apache.pekko" %% "pekko-actor" % version)
     val testkit         = dep("org.apache.pekko" %% "pekko-testkit" % version)
